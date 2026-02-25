@@ -5,7 +5,7 @@ const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e:any) => {
     e.preventDefault();
     try {
       const response = await axios.post("http://127.0.0.1:5000/api/register", {

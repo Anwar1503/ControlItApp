@@ -1,14 +1,17 @@
-import React, { useState } from "react";
+import React, { useState ,FormEvent} from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import Button from '@mui/material/Button';
+import Grid from "@mui/material/Grid";
+import { Typography } from "@mui/material";
 
-const Login = () => {
+const Login :React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
       const response = await axios.post("http://127.0.0.1:5000/api/login", {
@@ -39,7 +42,7 @@ const Login = () => {
   };
 
   return (
-    <div
+    <Grid
       style={{
         minHeight: "100vh",
         width: "100vw",
@@ -47,7 +50,7 @@ const Login = () => {
       }}
     >
       {/* Left side with image */}
-      <div
+      <Grid
         style={{
           flex: 1,
           backgroundImage: "url('/app_icon.png')",
@@ -58,7 +61,7 @@ const Login = () => {
         }}
       />
       {/* Right side with login form */}
-      <div
+      <Grid
         style={{
           flex: 1,
           display: "flex",
@@ -67,7 +70,7 @@ const Login = () => {
           background: "linear-gradient(120deg,rgb(58, 59, 59) 0%,rgb(164, 168, 251) 100%)",
         }}
       >
-        <div
+        <Grid
           style={{
             padding: "2.5rem 2rem",
             background: "rgba(7, 0, 0, 0.1)",
@@ -79,18 +82,18 @@ const Login = () => {
             backdropFilter: "blur(8px)",
           }}
         >
-          <h2
+          <Typography
             style={{
               textAlign: "center",
               marginBottom: "2rem",
               color: "#fff",
-              fontWeight: 500,
+              fontSize:40,
             }}
           >
             Login
-          </h2>
+          </Typography>
           <form onSubmit={handleSubmit}>
-            <div style={{ position: "relative", marginBottom: "1.5rem" }}>
+            <Grid style={{ position: "relative", marginBottom: "1.5rem" }}>
               <i
                 className="fa fa-user"
                 style={{
@@ -120,8 +123,8 @@ const Login = () => {
                   boxSizing: "border-box",
                 }}
               />
-            </div>
-            <div style={{ position: "relative", marginBottom: "1.5rem" }}>
+            </Grid>
+            <Grid style={{ position: "relative", marginBottom: "1.5rem" }}>
               <i
                 className="fa fa-lock"
                 style={{
@@ -151,8 +154,8 @@ const Login = () => {
                   boxSizing: "border-box",
                 }}
               />
-            </div>
-            <div
+            </Grid>
+            <Grid
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -177,27 +180,27 @@ const Login = () => {
                   textDecoration: "underline",
                 }}
               >
-                Forget Me?
+                Forgot Password ?
               </a>
-            </div>
-            <div
+            </Grid>
+            <Grid
               style={{ display: "flex", flexDirection: "column", gap: "18px" }}
             >
-              <button type="submit" style={buttonStyle}>
+              <Button type="submit" style={buttonStyle}>
                 Login
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={() => navigate("/register")}
                 style={buttonStyle}
               >
                 Sign In
-              </button>
-            </div>
+              </Button>
+            </Grid>
           </form>
-        </div>
-      </div>
-    </div>
+        </Grid>
+      </Grid>
+    </Grid>
   );
 };
 
