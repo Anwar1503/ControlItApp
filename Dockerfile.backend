@@ -1,0 +1,25 @@
+# Backend Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy backend code
+COPY backend/ ./backend/
+COPY notify.py .
+COPY notifyproject.py .
+
+# Create a simple app.py in root for Flask to run
+RUN echo 'import sys\nsys.path.insert(0, "/app")\nfrom backend.routes.backend_api import app\nif __name__ == "__main__":\n    app.run(host="0.0.0.0", port=5000, debug=False)' > app.py
+
+EXPOSE 5000
+
+CMD ["python", "app.py"]

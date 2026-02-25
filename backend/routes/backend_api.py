@@ -4,15 +4,53 @@ from flask_bcrypt import Bcrypt
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from services.otp_service import request_otp, verify_otp, is_otp_verified, clear_otp
 
 app = Flask(__name__)
 CORS(app)
 bcrypt = Bcrypt(app)
 
-# MongoDB setup
-client = MongoClient("mongodb://localhost:27017/")
+# MongoDB setup - Use environment variable or default to localhost
+MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/')
+client = MongoClient(MONGODB_URI)
 db = client["user_database"]
 users_collection = db["users"]
+
+
+@app.route('/api/register/request-otp', methods=['POST'])
+def request_otp_endpoint():
+    """Request OTP for registration"""
+    data = request.json
+    email = data.get('email')
+    phone = data.get('phone')
+    
+    if not email or not phone:
+        return jsonify({"status": "error", "message": "Email and phone are required"}), 400
+    
+    # Check if user already exists
+    if users_collection.find_one({"email": email}):
+        return jsonify({"status": "error", "message": "User already exists!"}), 409
+    
+    result = request_otp(email, phone)
+    status_code = 200 if result['status'] == 'success' else 400
+    return jsonify(result), status_code
+
+
+@app.route('/api/register/verify-otp', methods=['POST'])
+def verify_otp_endpoint():
+    """Verify OTP for registration"""
+    data = request.json
+    email = data.get('email')
+    otp = data.get('otp')
+    
+    if not email or not otp:
+        return jsonify({"status": "error", "message": "Email and OTP are required"}), 400
+    
+    result = verify_otp(email, otp)
+    status_code = 200 if result['status'] == 'success' else 400
+    return jsonify(result), status_code
 
 
 @app.route('/api/register', methods=['POST'])
@@ -20,6 +58,11 @@ def register():
     data = request.json
     email = data.get('email')
     password = data.get('password')
+    phone = data.get('phone')
+
+    # Check if OTP is verified
+    if not is_otp_verified(email):
+        return jsonify({"message": "Please verify your OTP first!"}), 400
 
     # Check if user already exists
     if users_collection.find_one({"email": email}):
@@ -29,10 +72,12 @@ def register():
     
     new_user = {
         "email": email,
+        "phone": phone,
         "password": hashed_password
     }
 
     result = users_collection.insert_one(new_user)
+    clear_otp(email)  # Clear OTP after successful registration
     return jsonify({"message": "User registered successfully!", "user_id": str(result.inserted_id)})
 
 

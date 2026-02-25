@@ -5,6 +5,8 @@ import Button from '@mui/material/Button';
 import Grid from "@mui/material/Grid";
 import { Typography } from "@mui/material";
 
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
 const Login :React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -14,7 +16,7 @@ const Login :React.FC = () => {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      const response = await axios.post("http://127.0.0.1:5000/api/login", {
+      const response = await axios.post(`${API_URL}/api/login`, {
         email,
         password,
       });
