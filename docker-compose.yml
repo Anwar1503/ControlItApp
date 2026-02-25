@@ -1,0 +1,73 @@
+services:
+  # MongoDB Database Service
+  mongodb:
+    image: mongo:latest
+    container_name: controlapp_mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: user_database
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - controlapp_network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend Flask Service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: controlapp_backend
+    ports:
+      - "5000:5000"
+    environment:
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/user_database
+      FLASK_ENV: production
+      FLASK_DEBUG: 0
+      EMAIL_ADDRESS: ${EMAIL_ADDRESS}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app/backend
+      - ./notify.py:/app/notify.py
+      - ./notifyproject.py:/app/notifyproject.py
+    networks:
+      - controlapp_network
+    restart: unless-stopped
+
+  # Frontend React Service
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: controlapp_frontend
+    ports:
+      - "80:80"
+    environment:
+      REACT_APP_API_URL: http://localhost:5000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    networks:
+      - controlapp_network
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:
+  mongodb_config:
+
+networks:
+  controlapp_network:
+    driver: bridge
