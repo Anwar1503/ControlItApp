@@ -29,7 +29,7 @@ services:
     ports:
       - "5000:5000"
     environment:
-      MONGODB_URI: mongodb://admin:password@mongodb:27017/user_database
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/user_database?authSource=admin
       FLASK_ENV: production
       FLASK_DEBUG: 0
       EMAIL_ADDRESS: ${EMAIL_ADDRESS}

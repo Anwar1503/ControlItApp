@@ -6,10 +6,7 @@ from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import requests
-
-# Load from environment variables (secure way)
-EMAIL_ADDRESS = os.getenv('EMAIL_ADDRESS', 'your-email@gmail.com')
-EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD', 'your-app-password')
+from .credentials_service import get_email_credentials
 
 # OTP storage with expiration (in-memory, or use MongoDB for production)
 otp_storage = {}  # Format: {email: {"otp": "123456", "expiry": datetime, "phone": "1234567890", "verified": False}}
@@ -23,6 +20,13 @@ def generate_otp():
 def send_email_otp(email, otp):
     """Send OTP via email using SMTP"""
     try:
+        # Get credentials from database
+        EMAIL_ADDRESS, EMAIL_PASSWORD = get_email_credentials()
+        
+        if not EMAIL_ADDRESS or not EMAIL_PASSWORD:
+            print("Error: Email credentials not configured. Set credentials in database.")
+            return False
+        
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
