@@ -20,13 +20,20 @@ const Login :React.FC = () => {
         email,
         password,
       });
-      alert(response.data.message);
+      
       if (response.data.message === "Login successful!") {
-      navigate("/dashboard");
-    }
+        // Store user info in localStorage
+        localStorage.setItem('user_id', response.data.user_id);
+        localStorage.setItem('email', response.data.email);
+        localStorage.setItem('role', response.data.role);
+        localStorage.setItem('is_admin', response.data.is_admin.toString());
+        
+        alert(response.data.message);
+        navigate("/dashboard");
+      }
     } catch (error) {
       console.error("Login error:", error);
-      //alert("Login failed!");
+      alert("Login failed!");
     }
   };
 
