@@ -9,10 +9,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from services.otp_service import request_otp, verify_otp, is_otp_verified, clear_otp
 from services.credentials_service import store_email_credentials, get_email_credentials
 from services.auth_service import require_admin_role
+from services.logger_service import setup_logger
+from services.bootstrap_admin import bootstrap_admin
 
 app = Flask(__name__)
 CORS(app)
 bcrypt = Bcrypt(app)
+
+logger = setup_logger("controlit-backend")
 
 # MongoDB setup - Use environment variable or default to localhost
 MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/')
@@ -20,10 +24,20 @@ client = MongoClient(MONGODB_URI)
 db = client["user_database"]
 users_collection = db["users"]
 
+logger.debug(
+    "Mongo context DB=%s Collection=%s",
+    db.name,
+    users_collection.name
+)
+
+#BOOTSTRAP(runs once at startup)
+bootstrap_admin(users_collection, logger)
+
 
 @app.route('/api/register/request-otp', methods=['POST'])
 def request_otp_endpoint():
     """Request OTP for registration"""
+    logger.debug("Otp request received")
     data = request.json
     email = data.get('email')
     phone = data.get('phone')
@@ -37,6 +51,7 @@ def request_otp_endpoint():
     
     result = request_otp(email, phone)
     status_code = 200 if result['status'] == 'success' else 400
+    logger.info("Otp request success")
     return jsonify(result), status_code
 
 
@@ -57,6 +72,7 @@ def verify_otp_endpoint():
 
 @app.route('/api/register', methods=['POST'])
 def register():
+    logger.debug("register request received")
     data = request.json
     email = data.get('email')
     password = data.get('password')
@@ -86,7 +102,8 @@ def register():
     }
 
     result = users_collection.insert_one(new_user)
-    clear_otp(email)  # Clear OTP after successful registration
+    clear_otp(email)
+    logger.debug("register request received")
     
     return jsonify({
         "message": "User registered successfully!",
@@ -98,12 +115,27 @@ def register():
 
 @app.route('/api/login', methods=['POST'])
 def login():
+    logger.debug("Login request received")
+    logger.debug(
+        "Mongo context DB=%s Collection=%s",
+        db.name,
+        users_collection.name
+    )
+
     data = request.json
-    email = data.get('email')
-    password = data.get('password')
+    email = data.get("email")
+    password = data.get("password")
+
+    logger.debug("login payload received for email=%s", email)
 
     user = users_collection.find_one({"email": email})
-    if user and user["password"] == data.get("password"):
+
+    if not user:
+        logger.warning("Login failed: user not found email=%s", email)
+        return jsonify({"message": "Invalid credentials!"}), 401
+
+    if bcrypt.check_password_hash(user["password"], password):
+        logger.info("Login successful email=%s role=%s", user["email"], user["role"])
         return jsonify({
             "message": "Login successful!",
             "user_id": str(user["_id"]),
@@ -111,8 +143,9 @@ def login():
             "role": user.get("role", "user"),
             "is_admin": user.get("role", "user") == "admin"
         })
-    else:
-        return jsonify({"message": "Invalid credentials!"}), 401
+
+    logger.warning("Invalid password for email=%s", email)
+    return jsonify({"message": "Invalid credentials!"}), 401
 
 
 @app.route('/api/lock', methods=['POST'])
@@ -190,7 +223,6 @@ def check_email_credentials():
     
     except Exception as e:
         return jsonify({"status": "error", "message": f"Error checking credentials: {str(e)}"}), 500
-
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
