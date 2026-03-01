@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   # MongoDB Database Service
   mongodb:
@@ -34,6 +36,11 @@ services:
       FLASK_DEBUG: 0
       EMAIL_ADDRESS: ${EMAIL_ADDRESS}
       EMAIL_PASSWORD: ${EMAIL_PASSWORD}
+      LOG_DIR: /app/logs
+      LOG_FILE: backend.log
+      LOG_LEVEL: DEBUG
+      ADMIN_EMAIL: admin@controlit.local
+      ADMIN_PASSWORD: Admin@123
     depends_on:
       mongodb:
         condition: service_healthy
@@ -41,6 +48,7 @@ services:
       - ./backend:/app/backend
       - ./notify.py:/app/notify.py
       - ./notifyproject.py:/app/notifyproject.py
+      - ./logs:/app/logs
     networks:
       - controlapp_network
     restart: unless-stopped
