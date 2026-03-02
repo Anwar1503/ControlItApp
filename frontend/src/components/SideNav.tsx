@@ -24,7 +24,7 @@ const SideNav: React.FC = () => {
     { text: "Profile", path: "/profile" },
     { text: "Settings", path: "/settings" },
     { text: "LockPC", path: "/lockpc" },
-    { text: "Logout", path: "/logout" },
+    { text: "Logout", path: "/login" },
   ];
 
   return (

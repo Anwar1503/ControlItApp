@@ -5,11 +5,13 @@ Stores and retrieves email credentials from MongoDB with encryption
 from pymongo import MongoClient
 from cryptography.fernet import Fernet
 import os
+from .logger_service import setup_logger
 
 MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/')
 client = MongoClient(MONGODB_URI)
 db = client["user_database"]
 credentials_collection = db["email_credentials"]
+logger = setup_logger("Credential_service-backend")
 
 # Encryption key from environment variable
 # To generate a new key: from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())

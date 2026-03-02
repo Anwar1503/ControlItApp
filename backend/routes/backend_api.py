@@ -183,11 +183,18 @@ def setup_email_credentials():
     }
     """
     try:
+        logger.debug("setting up credentials")
         data = request.json
         email = data.get('email')
         password = data.get('password')
+        logger.debug(
+            "data EMAIL=%s Password=%s",
+            email,
+            password
+        )
         
         if not email or not password:
+            logger.error("Email and password are required")
             return jsonify({"status": "error", "message": "Email and password are required"}), 400
         
         result = store_email_credentials(email, password)

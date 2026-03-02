@@ -7,9 +7,13 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import requests
 from .credentials_service import get_email_credentials
+from .logger_service import setup_logger
 
 # OTP storage with expiration (in-memory, or use MongoDB for production)
 otp_storage = {}  # Format: {email: {"otp": "123456", "expiry": datetime, "phone": "1234567890", "verified": False}}
+
+
+logger = setup_logger("otp_service-backend")
 
 
 def generate_otp():
@@ -24,7 +28,7 @@ def send_email_otp(email, otp):
         EMAIL_ADDRESS, EMAIL_PASSWORD = get_email_credentials()
         
         if not EMAIL_ADDRESS or not EMAIL_PASSWORD:
-            print("Error: Email credentials not configured. Set credentials in database.")
+            logger.debug("Error: Email credentials not configured. Set credentials in database.")
             return False
         
         server = smtplib.SMTP('smtp.gmail.com', 587)

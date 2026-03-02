@@ -41,6 +41,7 @@ services:
       LOG_LEVEL: DEBUG
       ADMIN_EMAIL: admin@controlit.local
       ADMIN_PASSWORD: Admin@123
+      REACT_APP_API_URL: http://backend:5000
     depends_on:
       mongodb:
         condition: service_healthy

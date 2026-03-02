@@ -14,9 +14,7 @@ import {
 } from "@mui/material";
 
 import axios from 'axios';
-
-// API Configuration
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+import { API_BASE } from "../config/api";
 
 interface RegisterFormData {
   name: string;
@@ -61,7 +59,7 @@ const Register: React.FC = () => {
     setMessage("");
 
     try {
-      const response = await axios.post(`${API_URL}/api/register/request-otp`, {
+      const response = await axios.post(`${API_BASE}/api/register/request-otp`, {
         email: formData.email,
         phone: formData.phone,
       });
@@ -84,7 +82,7 @@ const Register: React.FC = () => {
     setMessage("");
 
     try {
-      const response = await axios.post(`${API_URL}/api/register/verify-otp`, {
+      const response = await axios.post(`${API_BASE}/api/register/verify-otp`, {
         email: formData.email,
         otp: otp,
       });
@@ -108,7 +106,7 @@ const Register: React.FC = () => {
     setMessage("");
 
     try {
-      const response = await axios.post(`${API_URL}/api/register`, formData);
+      const response = await axios.post(`${API_BASE}/api/register`, formData);
       setMessage(response.data.message);
       // Reset form
       setFormData({

@@ -4,6 +4,9 @@ Checks if user has admin role before allowing access to protected endpoints
 """
 from functools import wraps
 from flask import request, jsonify
+from .logger_service import setup_logger
+
+logger = setup_logger("Decoraters")
 
 def require_admin_token(f):
     """
@@ -60,6 +63,7 @@ def require_admin_role(f):
     def decorated_function(*args, **kwargs):
         # Get user_role from request (can be from body, query, or header)
         user_role = request.args.get('user_role')
+        logger.info("user_role is",user_role)
         
         if not user_role and request.json:
             user_role = request.json.get('user_role')
