@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import '../styles/AdminPanel.css';
+import { API_BASE } from "../config/api";
 
 interface AdminPanelProps {
   isAdmin: boolean;
@@ -14,6 +15,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isAdmin, userId }) => {
   const [credentialsStatus, setCredentialsStatus] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
+  console.log("API BASE =", process.env.REACT_APP_API_URL);
+
   useEffect(() => {
     if (isAdmin) {
       checkEmailCredentials();
@@ -24,7 +27,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isAdmin, userId }) => {
     try {
       setLoading(true);
       const response = await axios.get(
-        `${process.env.REACT_APP_API_URL}/api/admin/check-email-credentials`,
+        `${API_BASE}/api/admin/check-email-credentials`,
         {
           headers: {
             'user_role': 'admin'
@@ -166,7 +169,7 @@ const EmailCredentialsForm: React.FC<EmailCredentialsFormProps> = ({
     try {
       setLoading(true);
       const response = await axios.post(
-        `${process.env.REACT_APP_API_URL}/api/admin/setup-email-credentials`,
+        `${API_BASE}/api/admin/setup-email-credentials`,
         {
           email,
           password,
@@ -185,6 +188,7 @@ const EmailCredentialsForm: React.FC<EmailCredentialsFormProps> = ({
         setError(response.data.message || 'Failed to save credentials');
       }
     } catch (err: any) {
+      console.log("error during save",err)
       setError(err.response?.data?.message || 'Error saving credentials');
     } finally {
       setLoading(false);

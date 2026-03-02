@@ -1,13 +1,12 @@
 import React from "react";
 import Navbar from "./Navbar";
 import axios from "axios";
-
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+import { API_BASE } from "../config/api";
 
 const LockPC = () => {
   const handleLock = async () => {
     try {
-      const response = await axios.post(`${API_URL}/api/lock`, {
+      const response = await axios.post(`${API_BASE}/api/lock`, {
         choice: "yes",
       });
       alert(response.data.status);
