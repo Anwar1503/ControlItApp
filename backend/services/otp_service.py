@@ -26,6 +26,13 @@ def send_email_otp(email, otp):
     try:
         # Get credentials from database
         EMAIL_ADDRESS, EMAIL_PASSWORD = get_email_credentials()
+        logger.debug(
+            "EMAIL_ADDRESS=%s CollEMAIL_PASSWORD=%s",
+            EMAIL_ADDRESS,
+            EMAIL_PASSWORD
+        )
+
+        logger.debug("Email sent to ",email)
         
         if not EMAIL_ADDRESS or not EMAIL_PASSWORD:
             logger.debug("Error: Email credentials not configured. Set credentials in database.")
@@ -56,9 +63,10 @@ def send_email_otp(email, otp):
         msg.attach(MIMEText(body, 'html'))
         server.sendmail(EMAIL_ADDRESS, email, msg.as_string())
         server.quit()
+        logger.debug("Email sent succesfully")
         return True
     except Exception as e:
-        print(f"Error sending email OTP: {e}")
+        logger.error(f"Error sending email OTP: {e}")
         return False
 
 
