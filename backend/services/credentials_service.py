@@ -95,7 +95,7 @@ def get_email_credentials():
             return email, password
         return None, None
     except Exception as e:
-        print(f"Error retrieving credentials: {str(e)}")
+        logger.debug(f"Error retrieving credentials: {str(e)}")
         return None, None
 
 

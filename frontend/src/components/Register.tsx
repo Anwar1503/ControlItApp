@@ -20,6 +20,7 @@ interface RegisterFormData {
   name: string;
   email: string;
   password: string;
+  confirmPassword: string;
   phone: string;
 }
 
@@ -28,6 +29,7 @@ const Register: React.FC = () => {
     name: "",
     email: "",
     password: "",
+    confirmPassword:"",
     phone: "",
   });
 
@@ -101,6 +103,10 @@ const Register: React.FC = () => {
 
   const handleFinalRegister = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (formData.password !== formData.confirmPassword) {
+      alert("Passwords do not match");
+      return;
+    }
     setLoading(true);
     setError("");
     setMessage("");
@@ -113,6 +119,7 @@ const Register: React.FC = () => {
         name: "",
         email: "",
         password: "",
+        confirmPassword:"",
         phone: "",
       });
       setActiveStep(0);
@@ -238,12 +245,41 @@ const Register: React.FC = () => {
               disabled={loading}
             />
 
+            <TextField
+              fullWidth
+              margin="normal"
+              label="Confirm Password"
+              type="password"
+              name="confirmPassword"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              required
+              disabled={loading}
+              error={
+                Boolean(
+                  formData.confirmPassword &&
+                  formData.password !== formData.confirmPassword
+                )
+              }
+              helperText={
+                formData.confirmPassword &&
+                formData.password !== formData.confirmPassword
+                  ? "Passwords do not match"
+                  : ""
+              }
+            />
+
             <Button
               fullWidth
               type="submit"
               variant="contained"
               sx={{ marginTop: 3 }}
-              disabled={loading}
+              disabled={
+                loading ||
+                !formData.password ||
+                !formData.confirmPassword ||
+                formData.password !== formData.confirmPassword
+              }
             >
               {loading ? <CircularProgress size={24} /> : "Complete Registration"}
             </Button>
