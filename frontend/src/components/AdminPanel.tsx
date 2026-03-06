@@ -13,19 +13,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isAdmin, userId }) => {
   const navigate = useNavigate();
   const [emailSetupVisible, setEmailSetupVisible] = useState(false);
   const [credentialsStatus, setCredentialsStatus] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [agents, setAgents] = useState<any[]>([]);
+  const [agentsLoading, setAgentsLoading] = useState(false);
 
   console.log("API BASE =", process.env.REACT_APP_API_URL);
 
   useEffect(() => {
     if (isAdmin) {
       checkEmailCredentials();
+      fetchAgents();
     }
   }, [isAdmin]);
 
   const checkEmailCredentials = async () => {
     try {
-      setLoading(true);
       const response = await axios.get(
         `${API_BASE}/api/admin/check-email-credentials`,
         {
@@ -37,8 +38,41 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isAdmin, userId }) => {
       setCredentialsStatus(response.data);
     } catch (error) {
       console.error('Error checking credentials:', error);
+    }
+  };
+
+  const fetchAgents = async () => {
+    try {
+      setAgentsLoading(true);
+      const response = await axios.get(`${API_BASE}/api/admin/agents`, {
+        headers: {
+          'user_role': 'admin'
+        }
+      });
+      if (response.data.status === 'success') {
+        setAgents(response.data.agents);
+      }
+    } catch (error) {
+      console.error('Error fetching agents:', error);
     } finally {
-      setLoading(false);
+      setAgentsLoading(false);
+    }
+  };
+
+  const sendCommand = async (agentId: string, command: string) => {
+    try {
+      await axios.post(`${API_BASE}/api/admin/agent/command`, {
+        agent_id: agentId,
+        command
+      }, {
+        headers: {
+          'user_role': 'admin'
+        }
+      });
+      alert(`Command "${command}" sent to agent`);
+    } catch (error) {
+      console.error('Error sending command:', error);
+      alert('Failed to send command');
     }
   };
 
@@ -133,6 +167,58 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isAdmin, userId }) => {
               <p className="info-text">
                 You have access to all admin functions and can configure system settings.
               </p>
+            </div>
+          </div>
+
+          {/* Agent Management */}
+          <div className="admin-card">
+            <div className="card-header">
+              <h2>Agent Management</h2>
+            </div>
+            <div className="card-body">
+              {agentsLoading ? (
+                <p>Loading agents...</p>
+              ) : agents.length === 0 ? (
+                <p>No agents linked yet.</p>
+              ) : (
+                <div className="agents-list">
+                  {agents.map((agent) => (
+                    <div key={agent.agent_id} className="agent-item">
+                      <div className="agent-info">
+                        <p><strong>Agent ID:</strong> {agent.agent_id}</p>
+                        <p><strong>User:</strong> {agent.user_email || 'Unknown'}</p>
+                        <p><strong>Last Heartbeat:</strong> {agent.last_heartbeat ? new Date(agent.last_heartbeat).toLocaleString() : 'Never'}</p>
+                        {agent.system_info && (
+                          <div className="system-info">
+                            <p><strong>Uptime:</strong> {Math.floor(agent.system_info.uptime / 3600)}h {Math.floor((agent.system_info.uptime % 3600) / 60)}m</p>
+                            <p><strong>Running Apps:</strong> {agent.system_info.running_apps?.length || 0}</p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="agent-actions">
+                        <button
+                          className="action-btn lock-btn"
+                          onClick={() => sendCommand(agent.agent_id, 'lock')}
+                        >
+                          Lock PC
+                        </button>
+                        <button
+                          className="action-btn shutdown-btn"
+                          onClick={() => sendCommand(agent.agent_id, 'shutdown')}
+                        >
+                          Shutdown
+                        </button>
+                        <button
+                          className="action-btn info-btn"
+                          onClick={() => sendCommand(agent.agent_id, 'get_info')}
+                        >
+                          Get Info
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
