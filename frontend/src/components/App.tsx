@@ -7,6 +7,7 @@ import Dashboard from "./Dashboard";
 import About from "./About";
 import LockPC from "./LockPC";
 import AdminPanel from "./AdminPanel";
+import AgentLink from "./AgentLink";
 
 const App = () => {
   return (
@@ -20,6 +21,7 @@ const App = () => {
           <Route path="/about" element={<About/>} />
           <Route path ="lockpc" element = {<LockPC/>} />
           <Route path="/admin" element={<AdminPanelRoute />} />
+          <Route path="/login/agent/link" element={<AgentLink />} />
           <Route path="/" element={<Navigate to="/login" replace />} />
         </Routes>
       </div>

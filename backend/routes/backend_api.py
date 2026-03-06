@@ -5,6 +5,8 @@ from pymongo import MongoClient
 from bson.objectid import ObjectId
 import os
 import sys
+import uuid
+import secrets
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from services.otp_service import request_otp, verify_otp, is_otp_verified, clear_otp
 from services.credentials_service import store_email_credentials, get_email_credentials
@@ -23,6 +25,7 @@ MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/')
 client = MongoClient(MONGODB_URI)
 db = client["user_database"]
 users_collection = db["users"]
+agents_collection = db["agents"]
 
 logger.debug(
     "Mongo context DB=%s Collection=%s",
@@ -230,6 +233,160 @@ def check_email_credentials():
     
     except Exception as e:
         return jsonify({"status": "error", "message": f"Error checking credentials: {str(e)}"}), 500
+
+
+def generate_agent_token():
+    """Generate a secure token for agent authentication"""
+    return secrets.token_urlsafe(32)
+
+
+def require_agent_auth(f):
+    """Decorator to require valid agent token"""
+    def wrapper(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({"error": "Missing or invalid authorization header"}), 401
+        
+        token = auth_header.split(' ')[1]
+        agent = agents_collection.find_one({"agent_token": token})
+        if not agent:
+            return jsonify({"error": "Invalid agent token"}), 401
+        
+        # Add agent to request context
+        request.agent = agent
+        return f(*args, **kwargs)
+    return wrapper
+
+
+@app.route('/api/agent/link', methods=['POST'])
+def link_agent():
+    """Link an agent to the current user session"""
+    data = request.json
+    agent_id = data.get('agent_id')
+    user_id = data.get('user_id')
+    
+    if not agent_id or not user_id:
+        return jsonify({"status": "error", "message": "Agent ID and User ID are required"}), 400
+    
+    # Check if user exists
+    user = users_collection.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        return jsonify({"status": "error", "message": "User not found"}), 404
+    
+    # Generate token
+    agent_token = generate_agent_token()
+    
+    # Update or insert agent
+    agents_collection.update_one(
+        {"agent_id": agent_id},
+        {
+            "$set": {
+                "agent_id": agent_id,
+                "agent_token": agent_token,
+                "linked_user_id": user_id,
+                "linked_at": None,
+                "last_heartbeat": None
+            }
+        },
+        upsert=True
+    )
+    
+    logger.info("Agent linked: agent_id=%s user_id=%s", agent_id, user_id)
+    return jsonify({"status": "success", "agent_token": agent_token})
+
+
+@app.route('/api/agent/status/<agent_id>', methods=['GET'])
+def get_agent_status(agent_id):
+    """Get linking status for an agent"""
+    agent = agents_collection.find_one({"agent_id": agent_id})
+    
+    if agent and agent.get('agent_token'):
+        return jsonify({
+            "linked": True,
+            "agent_token": agent['agent_token']
+        })
+    else:
+        return jsonify({
+            "linked": False
+        })
+
+
+@app.route('/api/agent/heartbeat', methods=['POST'])
+@require_agent_auth
+def agent_heartbeat():
+    """Receive heartbeat from agent with system info"""
+    data = request.json
+    agent_id = data.get('agent_id')
+    system_info = data.get('system_info', {})
+    
+    if not agent_id:
+        return jsonify({"error": "Agent ID is required"}), 400
+    
+    # Get pending commands
+    agent = agents_collection.find_one({"agent_id": agent_id})
+    commands = agent.get('pending_commands', []) if agent else []
+    
+    # Update last heartbeat and clear pending commands
+    agents_collection.update_one(
+        {"agent_id": agent_id},
+        {
+            "$set": {
+                "last_heartbeat": None,
+                "system_info": system_info
+            },
+            "$unset": {"pending_commands": ""}
+        }
+    )
+    
+    logger.debug("Heartbeat received from agent_id=%s, sending %d commands", agent_id, len(commands))
+    return jsonify({"commands": commands})
+
+
+@app.route('/api/admin/agents', methods=['GET'])
+@require_admin_role
+def get_agents():
+    """Get all linked agents (admin only)"""
+    try:
+        agents = list(agents_collection.find({}, {
+            '_id': 0,
+            'agent_id': 1,
+            'linked_user_id': 1,
+            'last_heartbeat': 1,
+            'system_info': 1
+        }))
+        
+        # Get user emails for display
+        for agent in agents:
+            user = users_collection.find_one({"_id": ObjectId(agent['linked_user_id'])}, {'email': 1})
+            if user:
+                agent['user_email'] = user['email']
+        
+        return jsonify({"status": "success", "agents": agents})
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Error fetching agents: {str(e)}"}), 500
+
+
+@app.route('/api/admin/agent/command', methods=['POST'])
+@require_admin_role
+def send_agent_command():
+    """Send command to agent (admin only)"""
+    data = request.json
+    agent_id = data.get('agent_id')
+    command = data.get('command')
+    
+    if not agent_id or not command:
+        return jsonify({"status": "error", "message": "Agent ID and command are required"}), 400
+    
+    # For now, we'll store the command in the agent's document
+    # In a real implementation, you might use WebSockets or polling
+    agents_collection.update_one(
+        {"agent_id": agent_id},
+        {"$push": {"pending_commands": command}}
+    )
+    
+    logger.info("Command sent to agent %s: %s", agent_id, command)
+    return jsonify({"status": "success", "message": "Command sent to agent"})
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
