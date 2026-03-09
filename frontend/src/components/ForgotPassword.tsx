@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
-
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+import { API_BASE } from "../config/api";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
@@ -10,7 +9,7 @@ const ForgotPassword = () => {
   const handleSubmit = async (e:any) => {
     e.preventDefault();
     try {
-      const response = await axios.post(`${API_URL}/api/register`, {
+      const response = await axios.post(`${API_BASE}/api/register`, {
         email,
         password,
       });

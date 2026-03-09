@@ -45,3 +45,6 @@ logs/
 
 # Instance folder
 instance/
+
+#suggestions from ai agents
+*.md
