@@ -3,6 +3,7 @@ from flask_cors import CORS
 from flask_bcrypt import Bcrypt
 from pymongo import MongoClient
 from bson.objectid import ObjectId
+from functools import wraps
 import os
 import sys
 import uuid
@@ -240,21 +241,96 @@ def generate_agent_token():
     return secrets.token_urlsafe(32)
 
 
+@app.route('/api/agent/register', methods=['POST'])
+def register_agent():
+    """Register a new agent (pre-link)
+    Agent calls this first with just agent_id to initialize itself in the database
+    """
+    try:
+        data = request.json
+        agent_id = data.get('agent_id')
+        
+        if not agent_id:
+            return jsonify({"status": "error", "message": "Agent ID is required"}), 400
+        
+        # Check if agent already exists
+        existing = agents_collection.find_one({"agent_id": agent_id})
+        if existing:
+            # Return existing token if already linked, or wait status if not
+            if existing.get('agent_token'):
+                return jsonify({
+                    "status": "success",
+                    "registered": True,
+                    "linked": True,
+                    "agent_token": existing['agent_token']
+                })
+            else:
+                return jsonify({
+                    "status": "success",
+                    "registered": True,
+                    "linked": False
+                })
+        
+        # Create new agent record (not yet linked)
+        agents_collection.insert_one({
+            "agent_id": agent_id,
+            "agent_token": None,  # Will be set when user links it
+            "linked_user_id": None,
+            "linked_at": None,
+            "last_heartbeat": None,
+            "system_info": {},
+            "pending_commands": []
+        })
+        
+        logger.info("Agent registered: agent_id=%s", agent_id)
+        return jsonify({
+            "status": "success",
+            "registered": True,
+            "linked": False,
+            "message": "Agent registered. User needs to link it via dashboard."
+        })
+    
+    except Exception as e:
+        logger.error("Error registering agent: %s", str(e))
+        return jsonify({"status": "error", "message": f"Error: {str(e)}"}), 500
+
+
+from functools import wraps
+
 def require_agent_auth(f):
-    """Decorator to require valid agent token"""
+    """Decorator to require valid agent token from database"""
+    @wraps(f)
     def wrapper(*args, **kwargs):
         auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({"error": "Missing or invalid authorization header"}), 401
+        logger.debug("Agent auth - Authorization header: %s", "present" if auth_header else "missing")
         
-        token = auth_header.split(' ')[1]
-        agent = agents_collection.find_one({"agent_token": token})
-        if not agent:
-            return jsonify({"error": "Invalid agent token"}), 401
+        if not auth_header:
+            logger.warning("Agent auth failed: Missing authorization header")
+            return jsonify({"error": "Missing authorization header"}), 401
         
-        # Add agent to request context
-        request.agent = agent
-        return f(*args, **kwargs)
+        if not auth_header.startswith('Bearer '):
+            logger.warning("Agent auth failed: Invalid header format")
+            return jsonify({"error": "Invalid authorization header format"}), 401
+        
+        try:
+            token = auth_header.split(' ')[1]
+            if not token:
+                logger.warning("Agent auth failed: Empty token")
+                return jsonify({"error": "Empty token"}), 401
+            
+            # Validate token exists in database
+            agent = agents_collection.find_one({"agent_token": token})
+            if not agent:
+                logger.warning("Agent auth failed: Token not found in database")
+                return jsonify({"error": "Invalid agent token"}), 401
+            
+            logger.debug("Agent auth successful for agent: %s", agent.get("agent_id"))
+            # Add agent to request context
+            request.agent = agent
+            return f(*args, **kwargs)
+        except Exception as e:
+            logger.error("Agent auth error: %s", str(e))
+            return jsonify({"error": f"Auth error: {str(e)}"}), 401
     return wrapper
 
 
@@ -311,10 +387,41 @@ def get_agent_status(agent_id):
         })
 
 
+@app.route('/api/agent/regenerate/<agent_id>', methods=['POST'])
+def regenerate_agent_token(agent_id):
+    """Regenerate token for an agent (for debugging/recovery)"""
+    try:
+        agent = agents_collection.find_one({"agent_id": agent_id})
+        
+        if not agent:
+            return jsonify({"status": "error", "message": "Agent not found"}), 404
+        
+        # Generate new token
+        new_token = generate_agent_token()
+        
+        # Update agent with new token
+        agents_collection.update_one(
+            {"agent_id": agent_id},
+            {"$set": {"agent_token": new_token}}
+        )
+        
+        logger.info("Agent token regenerated: agent_id=%s", agent_id)
+        return jsonify({
+            "status": "success",
+            "agent_id": agent_id,
+            "agent_token": new_token,
+            "message": "Token regenerated successfully"
+        })
+    except Exception as e:
+        logger.error("Error regenerating token: %s", str(e))
+        return jsonify({"status": "error", "message": f"Error: {str(e)}"}), 500
+
+
 @app.route('/api/agent/heartbeat', methods=['POST'])
 @require_agent_auth
 def agent_heartbeat():
     """Receive heartbeat from agent with system info"""
+    from datetime import datetime
     data = request.json
     agent_id = data.get('agent_id')
     system_info = data.get('system_info', {})
@@ -326,12 +433,12 @@ def agent_heartbeat():
     agent = agents_collection.find_one({"agent_id": agent_id})
     commands = agent.get('pending_commands', []) if agent else []
     
-    # Update last heartbeat and clear pending commands
+    # Update last heartbeat and store system info
     agents_collection.update_one(
         {"agent_id": agent_id},
         {
             "$set": {
-                "last_heartbeat": None,
+                "last_heartbeat": datetime.utcnow(),
                 "system_info": system_info
             },
             "$unset": {"pending_commands": ""}
@@ -343,11 +450,24 @@ def agent_heartbeat():
 
 
 @app.route('/api/admin/agents', methods=['GET'])
-@require_admin_role
 def get_agents():
-    """Get all linked agents (admin only)"""
+    """Get all linked agents for the logged-in user"""
     try:
-        agents = list(agents_collection.find({}, {
+        user_role = request.args.get('user_role')
+        user_id = request.args.get('user_id')
+        
+        logger.debug("get_agents called - user_role: %s, user_id: %s", user_role, user_id)
+        
+        if not user_id:
+            return jsonify({"status": "error", "message": "User ID required"}), 400
+        
+        # Admin can see all agents, regular users see only their own
+        if user_role and user_role.lower() == 'admin':
+            filter_query = {}
+        else:
+            filter_query = {"linked_user_id": user_id}
+        
+        agents = list(agents_collection.find(filter_query, {
             '_id': 0,
             'agent_id': 1,
             'linked_user_id': 1,
@@ -357,35 +477,64 @@ def get_agents():
         
         # Get user emails for display
         for agent in agents:
-            user = users_collection.find_one({"_id": ObjectId(agent['linked_user_id'])}, {'email': 1})
-            if user:
-                agent['user_email'] = user['email']
+            try:
+                user = users_collection.find_one({"_id": ObjectId(agent['linked_user_id'])}, {'email': 1})
+                if user:
+                    agent['user_email'] = user['email']
+            except:
+                agent['user_email'] = 'Unknown'
         
         return jsonify({"status": "success", "agents": agents})
     except Exception as e:
+        logger.error("Error fetching agents: %s", str(e))
         return jsonify({"status": "error", "message": f"Error fetching agents: {str(e)}"}), 500
 
 
 @app.route('/api/admin/agent/command', methods=['POST'])
-@require_admin_role
 def send_agent_command():
-    """Send command to agent (admin only)"""
-    data = request.json
-    agent_id = data.get('agent_id')
-    command = data.get('command')
-    
-    if not agent_id or not command:
-        return jsonify({"status": "error", "message": "Agent ID and command are required"}), 400
-    
-    # For now, we'll store the command in the agent's document
-    # In a real implementation, you might use WebSockets or polling
-    agents_collection.update_one(
-        {"agent_id": agent_id},
-        {"$push": {"pending_commands": command}}
-    )
-    
-    logger.info("Command sent to agent %s: %s", agent_id, command)
-    return jsonify({"status": "success", "message": "Command sent to agent"})
+    """Send command to agent"""
+    try:
+        data = request.json
+        agent_id = data.get('agent_id')
+        command = data.get('command')
+        user_id = data.get('user_id')
+        user_role = data.get('user_role')
+        
+        if not agent_id or not command:
+            logger.warning("Missing agent_id or command in request")
+            return jsonify({"status": "error", "message": "Agent ID and command are required"}), 400
+        
+        if not user_id:
+            logger.warning("Missing user_id in request")
+            return jsonify({"status": "error", "message": "User ID required"}), 400
+        
+        # Check if agent belongs to user (or user is admin)
+        agent = agents_collection.find_one({"agent_id": agent_id})
+        if not agent:
+            logger.warning("Agent not found: %s", agent_id)
+            return jsonify({"status": "error", "message": "Agent not found"}), 404
+        
+        # Admin can command any agent, regular users can only command their own
+        if not (user_role and user_role.lower() == 'admin'):
+            if agent.get('linked_user_id') != user_id:
+                logger.warning("User %s tried to command agent %s they don't own", user_id, agent_id)
+                return jsonify({"status": "error", "message": "Unauthorized: Agent not linked to your account"}), 403
+        
+        # Store the command in the agent's document
+        result = agents_collection.update_one(
+            {"agent_id": agent_id},
+            {"$push": {"pending_commands": command}}
+        )
+        
+        if result.modified_count > 0:
+            logger.info("Command sent to agent %s: %s by user %s", agent_id, command, user_id)
+            return jsonify({"status": "success", "message": "Command sent to agent"})
+        else:
+            logger.warning("Failed to update agent %s with command", agent_id)
+            return jsonify({"status": "error", "message": "Failed to send command"}), 500
+    except Exception as e:
+        logger.error("Error sending command: %s", str(e))
+        return jsonify({"status": "error", "message": f"Error: {str(e)}"}), 500
 
 
 if __name__ == '__main__':
