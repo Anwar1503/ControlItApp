@@ -13,7 +13,7 @@ from services.otp_service import request_otp, verify_otp, is_otp_verified, clear
 from services.credentials_service import store_email_credentials, get_email_credentials
 from services.auth_service import require_admin_role
 from services.logger_service import setup_logger
-from services.bootstrap_admin import bootstrap_admin
+from services.bootstrap_admin import BootStrap
 
 app = Flask(__name__)
 CORS(app)
@@ -35,7 +35,7 @@ logger.debug(
 )
 
 #BOOTSTRAP(runs once at startup)
-bootstrap_admin(users_collection, logger)
+BootStrap.bootstrap_admin(users_collection, logger)
 
 
 @app.route('/api/register/request-otp', methods=['POST'])
