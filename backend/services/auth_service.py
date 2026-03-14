@@ -4,9 +4,114 @@ Checks if user has admin role before allowing access to protected endpoints
 """
 from functools import wraps
 from flask import request, jsonify
+import jwt
+import os
 from .logger_service import setup_logger
 
 logger = setup_logger("Decoraters")
+
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your-secret-key-change-in-production')
+
+def require_jwt(f):
+    """
+    Decorator to require valid JWT token for endpoint access
+    Expects: Authorization: Bearer <token>
+    
+    Usage:
+        @app.route('/api/protected')
+        @require_jwt
+        def protected_endpoint():
+            ...
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        
+        if not auth_header:
+            return jsonify({"status": "error", "message": "Authorization header required"}), 401
+        
+        try:
+            # Expected format: "Bearer <token>"
+            parts = auth_header.split(' ')
+            if len(parts) != 2 or parts[0].lower() != 'bearer':
+                return jsonify({"status": "error", "message": "Invalid authorization header"}), 401
+            
+            token = parts[1]
+            
+            # Decode and verify JWT
+            payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
+            
+            # Attach user info to request for use in endpoint
+            request.user_id = payload.get('user_id')
+            request.user_email = payload.get('email')
+            request.user_role = payload.get('role')
+            request.is_admin = payload.get('is_admin', False)
+            
+            return f(*args, **kwargs)
+        
+        except jwt.ExpiredSignatureError:
+            return jsonify({"status": "error", "message": "Token has expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"status": "error", "message": "Invalid token"}), 401
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"Authorization error: {str(e)}"}), 401
+    
+    return decorated_function
+
+
+def require_admin_jwt(f):
+    """
+    Decorator to require valid JWT token with admin role
+    Expects: Authorization: Bearer <token>
+    
+    Usage:
+        @app.route('/api/admin/...')
+        @require_admin_jwt
+        def admin_endpoint():
+            ...
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        
+        if not auth_header:
+            return jsonify({"status": "error", "message": "Authorization header required"}), 401
+        
+        try:
+            # Expected format: "Bearer <token>"
+            parts = auth_header.split(' ')
+            if len(parts) != 2 or parts[0].lower() != 'bearer':
+                return jsonify({"status": "error", "message": "Invalid authorization header"}), 401
+            
+            token = parts[1]
+            
+            # Decode and verify JWT
+            payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
+            
+            # Check if admin
+            if not payload.get('is_admin', False):
+                return jsonify({
+                    "status": "error",
+                    "message": "Admin access required",
+                    "code": "ADMIN_ONLY"
+                }), 403
+            
+            # Attach user info to request
+            request.user_id = payload.get('user_id')
+            request.user_email = payload.get('email')
+            request.user_role = payload.get('role')
+            request.is_admin = payload.get('is_admin', False)
+            
+            return f(*args, **kwargs)
+        
+        except jwt.ExpiredSignatureError:
+            return jsonify({"status": "error", "message": "Token has expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"status": "error", "message": "Invalid token"}), 401
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"Authorization error: {str(e)}"}), 401
+    
+    return decorated_function
 
 def require_admin_token(f):
     """

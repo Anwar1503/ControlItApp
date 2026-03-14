@@ -13,15 +13,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isAdmin, userId }) => {
   const navigate = useNavigate();
   const [emailSetupVisible, setEmailSetupVisible] = useState(false);
   const [credentialsStatus, setCredentialsStatus] = useState<any>(null);
-  const [agents, setAgents] = useState<any[]>([]);
-  const [agentsLoading, setAgentsLoading] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
 
   console.log("API BASE =", process.env.REACT_APP_API_URL);
 
   useEffect(() => {
     if (isAdmin) {
       checkEmailCredentials();
-      fetchAgents();
+      fetchUsersWithAgents();
     }
   }, [isAdmin]);
 
@@ -41,38 +41,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isAdmin, userId }) => {
     }
   };
 
-  const fetchAgents = async () => {
+  const fetchUsersWithAgents = async () => {
     try {
-      setAgentsLoading(true);
-      const response = await axios.get(`${API_BASE}/api/admin/agents`, {
+      setUsersLoading(true);
+      const response = await axios.get(`${API_BASE}/api/admin/users-with-agents`, {
         headers: {
           'user_role': 'admin'
         }
       });
       if (response.data.status === 'success') {
-        setAgents(response.data.agents);
+        setUsers(response.data.users);
       }
     } catch (error) {
-      console.error('Error fetching agents:', error);
+      console.error('Error fetching users:', error);
     } finally {
-      setAgentsLoading(false);
-    }
-  };
-
-  const sendCommand = async (agentId: string, command: string) => {
-    try {
-      await axios.post(`${API_BASE}/api/admin/agent/command`, {
-        agent_id: agentId,
-        command
-      }, {
-        headers: {
-          'user_role': 'admin'
-        }
-      });
-      alert(`Command "${command}" sent to agent`);
-    } catch (error) {
-      console.error('Error sending command:', error);
-      alert('Failed to send command');
+      setUsersLoading(false);
     }
   };
 
@@ -170,49 +153,30 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isAdmin, userId }) => {
             </div>
           </div>
 
-          {/* Agent Management */}
+          {/* User Management */}
           <div className="admin-card">
             <div className="card-header">
-              <h2>Agent Management</h2>
+              <h2>User Management</h2>
             </div>
             <div className="card-body">
-              {agentsLoading ? (
-                <p>Loading agents...</p>
-              ) : agents.length === 0 ? (
-                <p>No agents linked yet.</p>
+              {usersLoading ? (
+                <p>Loading users...</p>
+              ) : users.length === 0 ? (
+                <p>No users found.</p>
               ) : (
-                <div className="agents-list">
-                  {agents.map((agent) => (
-                    <div key={agent.agent_id} className="agent-item">
-                      <div className="agent-info">
-                        <p><strong>Agent ID:</strong> {agent.agent_id}</p>
-                        <p><strong>User:</strong> {agent.user_email || 'Unknown'}</p>
-                        <p><strong>Last Heartbeat:</strong> {agent.last_heartbeat ? new Date(agent.last_heartbeat).toLocaleString() : 'Never'}</p>
-                        {agent.system_info && (
-                          <div className="system-info">
-                            <p><strong>Uptime:</strong> {Math.floor(agent.system_info.uptime / 3600)}h {Math.floor((agent.system_info.uptime % 3600) / 60)}m</p>
-                            <p><strong>Running Apps:</strong> {agent.system_info.running_apps?.length || 0}</p>
-                          </div>
-                        )}
+                <div className="users-list">
+                  {users.map((user) => (
+                    <div key={user.id} className="user-item">
+                      <div className="user-info">
+                        <p><strong>Email:</strong> {user.email}</p>
+                        <p><strong>Connected Agents:</strong> {user.agent_count}</p>
                       </div>
-                      <div className="agent-actions">
+                      <div className="user-actions">
                         <button
-                          className="action-btn lock-btn"
-                          onClick={() => sendCommand(agent.agent_id, 'lock')}
+                          className="action-btn view-btn"
+                          onClick={() => navigate(`/user/${user.id}`)}
                         >
-                          Lock PC
-                        </button>
-                        <button
-                          className="action-btn shutdown-btn"
-                          onClick={() => sendCommand(agent.agent_id, 'shutdown')}
-                        >
-                          Shutdown
-                        </button>
-                        <button
-                          className="action-btn info-btn"
-                          onClick={() => sendCommand(agent.agent_id, 'get_info')}
-                        >
-                          Get Info
+                          View Details
                         </button>
                       </div>
                     </div>

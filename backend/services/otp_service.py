@@ -99,7 +99,7 @@ def request_otp(email, phone):
         return {"status": "error", "message": "OTP already sent. Wait before requesting again."}
     
     otp = generate_otp()
-    expiry = datetime.now() + timedelta(minutes=10)
+    expiry = datetime.now() + timedelta(minutes=5)
     
     otp_storage[email] = {
         "otp": otp,

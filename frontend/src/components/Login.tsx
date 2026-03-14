@@ -21,14 +21,21 @@ const Login :React.FC = () => {
       });
       
       if (response.data.message === "Login successful!") {
-        // Store user info in localStorage
+        // Store JWT token and user info in localStorage
+        localStorage.setItem('token', response.data.token);
         localStorage.setItem('user_id', response.data.user_id);
         localStorage.setItem('email', response.data.email);
         localStorage.setItem('role', response.data.role);
         localStorage.setItem('is_admin', response.data.is_admin.toString());
         
         alert(response.data.message);
-        navigate("/dashboard");
+        
+        // Redirect based on role
+        if (response.data.is_admin) {
+          navigate("/admin");
+        } else {
+          navigate("/dashboard");
+        }
       }
     } catch (error) {
       console.error("Login error:", error);

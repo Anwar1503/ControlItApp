@@ -176,9 +176,11 @@ const AgentLink: React.FC = () => {
       if (response.data.status === 'success') {
         setSuccess(true);
         
-        // Clear any existing session data
+        // Clear ALL existing session data to force re-login
+        localStorage.removeItem('token');
         localStorage.removeItem('user_id');
         localStorage.removeItem('email');
+        localStorage.removeItem('role');
         localStorage.removeItem('is_admin');
         
         setTimeout(() => {

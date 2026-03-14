@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # MongoDB Database Service
   mongodb:
@@ -47,8 +45,6 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app/backend
-      - ./notify.py:/app/notify.py
-      - ./notifyproject.py:/app/notifyproject.py
       - ./logs:/app/logs
     networks:
       - controlapp_network

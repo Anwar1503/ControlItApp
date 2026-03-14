@@ -8,16 +8,26 @@ import os
 import sys
 import uuid
 import secrets
+import jwt
+import datetime
+from dotenv import load_dotenv
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from services.otp_service import request_otp, verify_otp, is_otp_verified, clear_otp
 from services.credentials_service import store_email_credentials, get_email_credentials
-from services.auth_service import require_admin_role
+from services.auth_service import require_admin_role, require_jwt, require_admin_jwt
 from services.logger_service import setup_logger
 from services.bootstrap_admin import BootStrap
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 bcrypt = Bcrypt(app)
+
+# JWT Secret Key (use environment variable in production)
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your-secret-key-change-in-production')
+app.config['JWT_SECRET_KEY'] = JWT_SECRET_KEY
 
 logger = setup_logger("controlit-backend")
 
@@ -140,8 +150,20 @@ def login():
 
     if bcrypt.check_password_hash(user["password"], password):
         logger.info("Login successful email=%s role=%s", user["email"], user["role"])
+        
+        # Create JWT token
+        token_payload = {
+            'user_id': str(user["_id"]),
+            'email': user["email"],
+            'role': user.get("role", "user"),
+            'is_admin': user.get("role", "user") == "admin",
+            'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)  # Token expires in 24 hours
+        }
+        token = jwt.encode(token_payload, app.config['JWT_SECRET_KEY'], algorithm='HS256')
+        
         return jsonify({
             "message": "Login successful!",
+            "token": token,
             "user_id": str(user["_id"]),
             "email": user["email"],
             "role": user.get("role", "user"),
@@ -153,6 +175,7 @@ def login():
 
 
 @app.route('/api/lock', methods=['POST'])
+@require_jwt
 def lock_laptop():
     data = request.json  
     user_choice = data.get('choice')  
@@ -164,6 +187,7 @@ def lock_laptop():
         return jsonify({"status": "Laptop not locked."})
 
 @app.route('/api/all_users')
+@require_admin_jwt
 def all_users():
     users = users_collection.find()
     return jsonify([
@@ -172,8 +196,59 @@ def all_users():
     ])
 
 
+@app.route('/api/admin/users-with-agents')
+@require_admin_jwt
+def get_users_with_agents():
+    """Get all users with their agent counts for admin dashboard"""
+    try:
+        users = list(users_collection.find({}, {'_id': 1, 'email': 1}))
+        users_with_agents = []
+
+        for user in users:
+            user_id = str(user['_id'])
+            agent_count = agents_collection.count_documents({"linked_user_id": user_id})
+
+            users_with_agents.append({
+                "id": user_id,
+                "email": user['email'],
+                "agent_count": agent_count
+            })
+
+        return jsonify({"status": "success", "users": users_with_agents})
+    except Exception as e:
+        logger.error("Error fetching users with agents: %s", str(e))
+        return jsonify({"status": "error", "message": f"Error fetching users: {str(e)}"}), 500
+
+
+@app.route('/api/admin/user-agents/<user_id>')
+@require_admin_jwt
+def get_user_agents(user_id):
+    """Get all agents for a specific user (admin view only)"""
+    try:
+        agents = list(agents_collection.find({"linked_user_id": user_id}, {
+            '_id': 0,
+            'agent_id': 1,
+            'linked_user_id': 1,
+            'last_heartbeat': 1,
+            'system_info': 1
+        }))
+
+        # Get user email for display
+        user = users_collection.find_one({"_id": ObjectId(user_id)}, {'email': 1})
+        user_email = user['email'] if user else 'Unknown'
+
+        # Add user email to each agent
+        for agent in agents:
+            agent['user_email'] = user_email
+
+        return jsonify({"status": "success", "agents": agents})
+    except Exception as e:
+        logger.error("Error fetching user agents: %s", str(e))
+        return jsonify({"status": "error", "message": f"Error fetching user agents: {str(e)}"}), 500
+
+
 @app.route('/api/admin/setup-email-credentials', methods=['POST'])
-@require_admin_role
+@require_admin_jwt
 def setup_email_credentials():
     """
     Setup/update email credentials for sending OTPs
@@ -210,7 +285,7 @@ def setup_email_credentials():
 
 
 @app.route('/api/admin/check-email-credentials', methods=['GET'])
-@require_admin_role
+@require_admin_jwt
 def check_email_credentials():
     """
     Check if email credentials are configured (without revealing password)
@@ -450,6 +525,7 @@ def agent_heartbeat():
 
 
 @app.route('/api/admin/agents', methods=['GET'])
+@require_jwt
 def get_agents():
     """Get all linked agents for the logged-in user"""
     try:
@@ -491,6 +567,7 @@ def get_agents():
 
 
 @app.route('/api/admin/agent/command', methods=['POST'])
+@require_jwt
 def send_agent_command():
     """Send command to agent"""
     try:
