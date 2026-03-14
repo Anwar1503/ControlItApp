@@ -9,10 +9,11 @@ import {
   Box,
   Typography,
 } from "@mui/material";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import MenuIcon from "@mui/icons-material/Menu";
 
 const SideNav: React.FC = () => {
+  const navigate = useNavigate();
   const [open, setOpen] = React.useState(false);
 
   const toggleDrawer = (state: boolean) => () => {
@@ -26,6 +27,12 @@ const SideNav: React.FC = () => {
     { text: "LockPC", path: "/lockpc" },
     { text: "Logout", path: "/login" },
   ];
+
+  const handleLogout = () => {
+    localStorage.clear();
+    setOpen(false);
+    navigate("/login");
+  };
 
   return (
     <>
@@ -48,13 +55,21 @@ const SideNav: React.FC = () => {
           <List>
             {menuItems.map((item) => (
                 <ListItem key={item.text} disablePadding>
-                    <ListItemButton
-                        component={Link}
-                        to={item.path}
-                        onClick={() => setOpen(false)} // close drawer
-                    >
-                        <ListItemText primary={item.text} />
-                    </ListItemButton>
+                    {item.text === "Logout" ? (
+                        <ListItemButton
+                            onClick={handleLogout}
+                        >
+                            <ListItemText primary={item.text} />
+                        </ListItemButton>
+                    ) : (
+                        <ListItemButton
+                            component={Link}
+                            to={item.path}
+                            onClick={() => setOpen(false)} // close drawer
+                        >
+                            <ListItemText primary={item.text} />
+                        </ListItemButton>
+                    )}
                 </ListItem>
             ))}
           </List>

@@ -29,6 +29,7 @@ import {
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import Navbar from "./Navbar";
+import { API_BASE } from "../config/api";
 import {
   Monitor as MonitorIcon,
   Power as PowerIcon,
@@ -198,7 +199,7 @@ const Dashboard: React.FC = () => {
         return;
       }
       
-      const response = await axios.get('/api/admin/agents', {
+      const response = await axios.get(`${API_BASE}/api/admin/agents`, {
         params: {
           user_role: role,
           user_id: userId,
@@ -289,7 +290,7 @@ const Dashboard: React.FC = () => {
           return;
         }
         
-        await axios.post('/api/admin/agent/command', {
+        await axios.post(`${API_BASE}/api/admin/agent/command`, {
           agent_id: selectedAgent.agent_id || selectedAgent.id,
           command: selectedCommand,
           user_role: role,
