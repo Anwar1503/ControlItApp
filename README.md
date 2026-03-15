@@ -17,6 +17,21 @@ to be used as a reference or for personal experimentation.
 - MongoDB for data storage
 - Flask for backend API
 
+## 🏗 Architecture Diagram
+
+```mermaid
+graph TD
+    A[User] --> B[Frontend<br/>React + TypeScript<br/>Served by Nginx]
+    B --> C[Backend<br/>Flask + Python<br/>REST API]
+    C --> D[MongoDB<br/>Database]
+    E[Remote Agents] --> C
+    C --> E
+    F[Admin Panel] --> B
+    B --> F
+```
+
+*Overview: Users interact with the React frontend, which communicates with the Flask backend via REST APIs. The backend stores data in MongoDB and handles agent heartbeats/commands. Remote agents connect to the backend for linking, monitoring, and control.*
+
 ## 🔒 License & Usage
 This project is **source-available**.
 
@@ -57,7 +72,7 @@ The ControlIt agent system provides server-side APIs for remote management of cl
 2. User logs in through the web interface
 3. Agent polls `/api/agent/status/{agent_id}` for linking completion
 4. Once linked, agent receives authentication token
-5. Agent begins sending heartbeats with system information
+5. Agent begins sending heartbeats every 10 seconds with system information
 
 ### Admin Panel
 Administrators can view linked agents and send commands through the admin panel at `/admin`.

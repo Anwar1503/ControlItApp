@@ -177,13 +177,20 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [infoAgent, setInfoAgent] = useState<Agent | null>(null);
   const [commandDialog, setCommandDialog] = useState(false);
   const [selectedCommand, setSelectedCommand] = useState<string | null>(null);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch agents from API
+  // Check if user is admin and redirect to admin panel
   useEffect(() => {
+    const isAdmin = localStorage.getItem('is_admin') === 'true';
+    if (isAdmin) {
+      // Redirect admins to admin panel
+      window.location.href = '/admin';
+      return;
+    }
     fetchAgents();
   }, []);
 
@@ -700,6 +707,7 @@ const Dashboard: React.FC = () => {
                     variant="outlined"
                     startIcon={<MonitorIcon style={{ width: "16px", height: "16px" }} />}
                     disabled={agent.status === "offline"}
+                    onClick={() => setInfoAgent(agent)}
                     sx={{
                       color: "white",
                       borderColor: "rgba(255,255,255,0.2)",
@@ -840,6 +848,62 @@ const Dashboard: React.FC = () => {
               : selectedCommand === "shutdown"
               ? "Shutdown"
               : "Restart"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Agent Info Dialog */}
+      <Dialog
+        open={Boolean(infoAgent)}
+        onClose={() => setInfoAgent(null)}
+        PaperProps={{
+          sx: {
+            background: "rgba(20, 20, 35, 0.95)",
+            backdropFilter: "blur(10px)",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            borderRadius: "12px",
+          },
+        }}
+      >
+        <DialogTitle sx={{ color: "white", fontWeight: "700" }}>
+          Agent Details
+        </DialogTitle>
+        <DialogContent sx={{ color: "rgba(255,255,255,0.8)" }}>
+          <Typography sx={{ mb: 1 }}>
+            {`Agent ID: ${infoAgent?.agent_id}`}
+          </Typography>
+          <Typography sx={{ mb: 1 }}>
+            {`Status: ${infoAgent?.status || "Unknown"}`}
+          </Typography>
+          <Typography sx={{ mb: 1 }}>
+            {`Last Heartbeat: ${infoAgent?.last_heartbeat || "N/A"}`}
+          </Typography>
+          {infoAgent?.system_info && (
+            <Box sx={{ mt: 2 }}>
+              <Typography sx={{ fontWeight: 700, mb: 1 }}>
+                System Info
+              </Typography>
+              <Typography>
+                {`OS: ${infoAgent.system_info.osVersion || "N/A"}`}
+              </Typography>
+              <Typography>
+                {`IP: ${infoAgent.system_info.ipAddress || "N/A"}`}
+              </Typography>
+              <Typography>
+                {`CPU: ${infoAgent.system_info.cpu || "N/A"}`}
+              </Typography>
+              <Typography>
+                {`RAM: ${infoAgent.system_info.ram || "N/A"}`}
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button
+            onClick={() => setInfoAgent(null)}
+            sx={{ color: "rgba(255,255,255,0.6)" }}
+          >
+            Close
           </Button>
         </DialogActions>
       </Dialog>

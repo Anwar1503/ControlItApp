@@ -59,13 +59,41 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isAdmin, userId }) => {
     }
   };
 
+  const changeUserRole = async (targetUserId: string, newRole: string) => {
+    // eslint-disable-next-line no-restricted-globals
+    if (!window.confirm(`Are you sure you want to change this user to ${newRole}?`)) {
+      return;
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE}/api/admin/change-user-role`, {
+        user_id: targetUserId,
+        role: newRole
+      }, {
+        headers: {
+          'user_role': 'admin'
+        }
+      });
+
+      if (response.data.status === 'success') {
+        alert(`User role changed to ${newRole}!`);
+        fetchUsersWithAgents(); // Refresh user list
+      } else {
+        alert(`Failed to change role: ${response.data.message}`);
+      }
+    } catch (error: any) {
+      console.error('Error changing user role:', error);
+      alert(`Error changing role: ${error.response?.data?.message || 'Unknown error'}`);
+    }
+  };
+
   if (!isAdmin) {
     return (
       <div className="admin-panel admin-denied">
         <div className="error-message">
           <h2>Access Denied</h2>
           <p>You do not have admin privileges.</p>
-          <button onClick={() => navigate('/dashboard')}>Back to Dashboard</button>
+          <button onClick={() => navigate('/logout')}>Logout</button>
         </div>
       </div>
     );
@@ -76,8 +104,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isAdmin, userId }) => {
       <div className="admin-container">
         <div className="admin-header">
           <h1>Admin Panel</h1>
-          <button className="back-btn" onClick={() => navigate('/dashboard')}>
-            ← Back
+          <button className="back-btn" onClick={() => navigate('/logout')}>
+            🚪 Logout
           </button>
         </div>
 
@@ -165,22 +193,60 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isAdmin, userId }) => {
                 <p>No users found.</p>
               ) : (
                 <div className="users-list">
-                  {users.map((user) => (
-                    <div key={user.id} className="user-item">
-                      <div className="user-info">
-                        <p><strong>Email:</strong> {user.email}</p>
-                        <p><strong>Connected Agents:</strong> {user.agent_count}</p>
+                  {users.map((user) => {
+                    const isCurrentAdmin = String(user.id) === String(userId);
+                    return (
+                      <div
+                        key={user.id}
+                        className="user-item"
+                        onClick={() => navigate(`/user/${user.id}`)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <div className="user-info">
+                          <p>
+                            <strong>Email:</strong> {user.email}
+                            {isCurrentAdmin && (
+                              <span style={{ marginLeft: 8, color: '#555', fontStyle: 'italic' }}>
+                                (You)
+                              </span>
+                            )}
+                          </p>
+                          <p>
+                            <strong>Role:</strong>
+                            <span className={`role-badge ${user.role}`}>
+                              {user.role === 'admin' ? 'Administrator' : 'User'}
+                            </span>
+                          </p>
+                          <p><strong>Connected Agents:</strong> {user.agent_count}</p>
+                        </div>
+                        <div className="user-actions" onClick={(e) => e.stopPropagation()}>
+                          {user.role === 'user' ? (
+                            <button
+                              className="action-btn promote-btn"
+                              onClick={() => changeUserRole(user.id, 'admin')}
+                            >
+                              Promote to Admin
+                            </button>
+                          ) : (
+                            <button
+                              className="action-btn demote-btn"
+                              disabled={isCurrentAdmin}
+                              title={isCurrentAdmin ? "You cannot demote yourself" : "Demote this user to a regular user"}
+                              onClick={() => changeUserRole(user.id, 'user')}
+                            >
+                              Demote to User
+                            </button>
+                          )}
+                          <button
+                            className="action-btn view-btn"
+                            onClick={() => navigate(`/user/${user.id}`)}
+                          >
+                            View Details
+                          </button>
+                        </div>
                       </div>
-                      <div className="user-actions">
-                        <button
-                          className="action-btn view-btn"
-                          onClick={() => navigate(`/user/${user.id}`)}
-                        >
-                          View Details
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
