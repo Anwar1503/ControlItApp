@@ -103,10 +103,21 @@ const Register: React.FC = () => {
 
   const handleFinalRegister = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
     if (formData.password !== formData.confirmPassword) {
-      alert("Passwords do not match");
+      setError("Passwords do not match");
       return;
     }
+
+    // Strong password requirements: min 8 chars, at least 1 uppercase, 1 special character
+    const passwordPolicy = /^(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>\/?]).{8,}$/;
+    if (!passwordPolicy.test(formData.password)) {
+      setError(
+        "Password must be at least 8 characters long and include an uppercase letter and a special character."
+      );
+      return;
+    }
+
     setLoading(true);
     setError("");
     setMessage("");
@@ -244,6 +255,11 @@ const Register: React.FC = () => {
               required
               disabled={loading}
             />
+
+            <Typography variant="body2" color="textSecondary" sx={{ mt: 1, mb: 2 }}>
+              Password must be at least 8 characters long and include at least one
+              uppercase letter and one special character (e.g., !@#$%^&*()).
+            </Typography>
 
             <TextField
               fullWidth

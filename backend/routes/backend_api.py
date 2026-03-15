@@ -6,6 +6,7 @@ from bson.objectid import ObjectId
 from functools import wraps
 import os
 import sys
+import re
 import uuid
 import secrets
 import jwt
@@ -46,6 +47,12 @@ logger.debug(
 
 #BOOTSTRAP(runs once at startup)
 BootStrap.bootstrap_admin(users_collection, logger)
+
+# Health check endpoint
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for Docker healthcheck"""
+    return jsonify({"status": "healthy", "service": "backend"}), 200
 
 
 @app.route('/api/register/request-otp', methods=['POST'])
@@ -95,6 +102,11 @@ def register():
     # Check if OTP is verified
     if not is_otp_verified(email):
         return jsonify({"message": "Please verify your OTP first!"}), 400
+
+    # Strong password rules: minimum 8 chars, at least one uppercase, and at least one special character
+    password_policy = r"^(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=[\]{};':\\\"\\|,.<>\/?]).{8,}$"
+    if not password or not re.match(password_policy, password):
+        return jsonify({"message": "Password must be at least 8 characters long, include an uppercase letter and a special character."}), 400
 
     # Check if user already exists
     if users_collection.find_one({"email": email}):
@@ -201,7 +213,7 @@ def all_users():
 def get_users_with_agents():
     """Get all users with their agent counts for admin dashboard"""
     try:
-        users = list(users_collection.find({}, {'_id': 1, 'email': 1}))
+        users = list(users_collection.find({}, {'_id': 1, 'email': 1, 'role': 1}))
         users_with_agents = []
 
         for user in users:
@@ -211,6 +223,7 @@ def get_users_with_agents():
             users_with_agents.append({
                 "id": user_id,
                 "email": user['email'],
+                "role": user.get('role', 'user'),
                 "agent_count": agent_count
             })
 
@@ -611,6 +624,50 @@ def send_agent_command():
             return jsonify({"status": "error", "message": "Failed to send command"}), 500
     except Exception as e:
         logger.error("Error sending command: %s", str(e))
+        return jsonify({"status": "error", "message": f"Error: {str(e)}"}), 500
+
+
+@app.route('/api/admin/change-user-role', methods=['POST'])
+@require_admin_jwt
+def change_user_role():
+    """Admin endpoint to change a user's role (admin/user)"""
+    try:
+        data = request.json
+        target_user_id = data.get('user_id')
+        new_role = data.get('role')  # 'admin' or 'user'
+        
+        if not target_user_id or new_role not in ['admin', 'user']:
+            return jsonify({"status": "error", "message": "Valid user_id and role (admin/user) are required"}), 400
+        
+        # Find the target user
+        user = users_collection.find_one({"_id": ObjectId(target_user_id)})
+        if not user:
+            return jsonify({"status": "error", "message": "User not found"}), 404
+        
+        # Prevent admin from demoting themselves
+        current_user_id = request.user_id
+        if str(user["_id"]) == current_user_id and new_role == 'user':
+            return jsonify({"status": "error", "message": "You cannot demote yourself"}), 400
+        
+        # Update user role
+        result = users_collection.update_one(
+            {"_id": ObjectId(target_user_id)},
+            {"$set": {"role": new_role}}
+        )
+        
+        if result.modified_count > 0:
+            logger.info("User role changed: user_id=%s, new_role=%s by admin=%s", target_user_id, new_role, current_user_id)
+            return jsonify({
+                "status": "success", 
+                "message": f"User {user['email']} role changed to {new_role}",
+                "user_id": target_user_id,
+                "new_role": new_role
+            })
+        else:
+            return jsonify({"status": "error", "message": "Failed to update user role"}), 500
+            
+    except Exception as e:
+        logger.error("Error changing user role: %s", str(e))
         return jsonify({"status": "error", "message": f"Error: {str(e)}"}), 500
 
 

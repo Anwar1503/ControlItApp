@@ -399,6 +399,11 @@
   transition: all 0.2s ease;
 }
 
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .lock-btn {
   background: #ff9800;
   color: white;
@@ -441,11 +446,66 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  transition: background 0.2s ease;
+}
+
+.user-item:hover {
+  background: #f0f4ff;
 }
 
 .user-info p {
   margin: 5px 0;
   font-size: 0.9rem;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-left: 8px;
+}
+
+.role-badge.admin {
+  background: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+}
+
+.role-badge.user {
+  background: rgba(33, 150, 243, 0.2);
+  color: #2196f3;
+}
+
+.promote-btn {
+  background: linear-gradient(135deg, #4caf50, #45a049);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  margin-right: 8px;
+}
+
+.demote-btn {
+  background: linear-gradient(135deg, #f44336, #d32f2f);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  margin-right: 8px;
+}
+
+.promote-btn:hover {
+  background: linear-gradient(135deg, #45a049, #4caf50);
+}
+
+.demote-btn:hover {
+  background: linear-gradient(135deg, #d32f2f, #f44336);
 }
 
 .user-actions {

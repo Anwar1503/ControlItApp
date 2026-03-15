@@ -12,6 +12,23 @@ import UserDetails from "./UserDetails";
 // Import API service to initialize axios interceptor
 import "../services/api";
 
+// Logout component
+const Logout: React.FC = () => {
+  React.useEffect(() => {
+    // Clear all authentication data
+    localStorage.removeItem('token');
+    localStorage.removeItem('user_id');
+    localStorage.removeItem('email');
+    localStorage.removeItem('role');
+    localStorage.removeItem('is_admin');
+    
+    // Redirect to login
+    window.location.href = '/login';
+  }, []);
+  
+  return <div>Logging out...</div>;
+};
+
 // Auth helpers
 const isAuthenticated = () => Boolean(localStorage.getItem("token"));
 const isAdminUser = () => localStorage.getItem("is_admin") === "true";
@@ -33,7 +50,19 @@ const AdminRoute: React.FC<{ element: React.ReactNode }> = ({ element }) => {
 };
 
 const PublicOnlyRoute: React.FC<{ element: React.ReactNode }> = ({ element }) => {
-  return isAuthenticated() ? <Navigate to="/dashboard" replace /> : <>{element}</>;
+  if (isAuthenticated()) {
+    // Redirect based on role
+    return isAdminUser() ? <Navigate to="/admin" replace /> : <Navigate to="/dashboard" replace />;
+  }
+  return <>{element}</>;
+};
+
+// Root redirect component
+const RootRedirect: React.FC = () => {
+  if (!isAuthenticated()) {
+    return <Navigate to="/login" replace />;
+  }
+  return isAdminUser() ? <Navigate to="/admin" replace /> : <Navigate to="/dashboard" replace />;
 };
 
 const App = () => {
@@ -41,6 +70,8 @@ const App = () => {
     <Router>
       <div>
         <Routes>
+          <Route path="/" element={<RootRedirect />} />
+          <Route path="/logout" element={<Logout />} />
           <Route path="/login" element={<PublicOnlyRoute element={<Login />} />} />
           <Route path="/register" element={<PublicOnlyRoute element={<Register />} />} />
           <Route path="/forgotpassword" element={<PublicOnlyRoute element={<ForgotPassword />} />} />
