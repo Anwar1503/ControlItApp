@@ -24,19 +24,14 @@ def generate_otp():
 def send_email_otp(email, otp):
     """Send OTP via email using SMTP"""
     try:
-        # Get credentials from database
+        # Get credentials from database (with fallback to environment)
         EMAIL_ADDRESS, EMAIL_PASSWORD = get_email_credentials()
-        logger.debug(
-            "EMAIL_ADDRESS=%s CollEMAIL_PASSWORD=%s",
-            EMAIL_ADDRESS,
-            EMAIL_PASSWORD
-        )
-
-        logger.debug("Email sent to ",email)
         
         if not EMAIL_ADDRESS or not EMAIL_PASSWORD:
-            logger.debug("Error: Email credentials not configured. Set credentials in database.")
+            logger.error("Email credentials not configured. Please set them up in Admin Panel or environment variables.")
             return False
+        
+        logger.debug(f"Sending OTP email to: {email}")
         
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()

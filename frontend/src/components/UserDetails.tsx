@@ -5,6 +5,7 @@ import { API_BASE } from "../config/api";
 
 interface Agent {
   agent_id: string;
+  name?: string;
   user_email?: string;
   system_info?: {
     type?: string;
@@ -143,7 +144,7 @@ const UserDetails: React.FC = () => {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                     <div>
                       <h3 style={{ margin: '0 0 15px 0', color: '#333' }}>
-                        Agent ID: {agent.agent_id}
+                        PC Name: {agent.name || agent.agent_id}
                       </h3>
                       <p style={{ margin: '5px 0', fontSize: '0.9rem' }}>
                         <strong>Last Heartbeat:</strong> {agent.last_heartbeat ?

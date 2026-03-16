@@ -51,8 +51,158 @@ BootStrap.bootstrap_admin(users_collection, logger)
 # Health check endpoint
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    """Health check endpoint for Docker healthcheck"""
-    return jsonify({"status": "healthy", "service": "backend"}), 200
+    """Health check endpoint for monitoring"""
+    return jsonify({"status": "healthy", "service": "controlit-backend"})
+
+# Health check endpoint
+@app.route('/api/user/profile', methods=['GET'])
+@require_jwt
+def get_user_profile():
+    """Get current user's profile information"""
+    try:
+        user_id = request.user_id  # From JWT
+        user = users_collection.find_one({"_id": ObjectId(user_id)}, {
+            '_id': 0,
+            'email': 1,
+            'phone': 1,
+            'parentName': 1,
+            'role': 1,
+            'created_at': 1
+        })
+
+        if not user:
+            return jsonify({"status": "error", "message": "User not found"}), 404
+
+        # Get agent statistics
+        agent_count = agents_collection.count_documents({"linked_user_id": user_id})
+        online_agents = agents_collection.count_documents({
+            "linked_user_id": user_id,
+            "last_heartbeat": {"$gte": datetime.datetime.utcnow() - datetime.timedelta(minutes=5)}
+        })
+
+        # Get average CPU usage from recent heartbeats
+        recent_agents = list(agents_collection.find({
+            "linked_user_id": user_id,
+            "last_heartbeat": {"$gte": datetime.datetime.utcnow() - datetime.timedelta(minutes=5)}
+        }, {"system_info.cpuUsage": 1}))
+
+        avg_cpu = 0
+        if recent_agents:
+            cpu_values = [agent.get("system_info", {}).get("cpuUsage", 0) for agent in recent_agents if agent.get("system_info", {}).get("cpuUsage")]
+            if cpu_values:
+                avg_cpu = round(sum(cpu_values) / len(cpu_values), 1)
+
+        user_data = {
+            **user,
+            "agent_count": agent_count,
+            "online_agents": online_agents,
+            "avg_cpu": avg_cpu
+        }
+
+        return jsonify({"status": "success", "user": user_data})
+    except Exception as e:
+        logger.error("Error fetching user profile: %s", str(e))
+        return jsonify({"status": "error", "message": f"Error: {str(e)}"}), 500
+
+
+@app.route('/api/user/profile', methods=['PUT'])
+@require_jwt
+def update_user_profile():
+    """Update current user's profile information"""
+    try:
+        user_id = request.user_id
+        data = request.json
+        email = data.get('email')
+        phone = data.get('phone')
+
+        if not email:
+            return jsonify({"status": "error", "message": "Email is required"}), 400
+
+        # Check if email is already taken by another user
+        existing_user = users_collection.find_one({"email": email, "_id": {"$ne": ObjectId(user_id)}})
+        if existing_user:
+            return jsonify({"status": "error", "message": "Email already in use"}), 409
+
+        # Update user
+        update_data = {"email": email}
+        if phone is not None:
+            update_data["phone"] = phone
+
+        result = users_collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": update_data}
+        )
+
+        if result.modified_count > 0:
+            return jsonify({"status": "success", "message": "Profile updated successfully"})
+        else:
+            return jsonify({"status": "success", "message": "No changes made"})
+    except Exception as e:
+        logger.error("Error updating user profile: %s", str(e))
+        return jsonify({"status": "error", "message": f"Error: {str(e)}"}), 500
+
+
+@app.route('/api/user/request-password-otp', methods=['POST'])
+def request_password_otp():
+    """Request OTP for password change"""
+    try:
+        data = request.json
+        email = data.get('email')
+
+        if not email:
+            return jsonify({"status": "error", "message": "Email is required"}), 400
+
+        # Check if user exists
+        user = users_collection.find_one({"email": email})
+        if not user:
+            return jsonify({"status": "error", "message": "User not found"}), 404
+
+        # Request OTP
+        result = request_otp(email, user.get('phone', ''))
+        status_code = 200 if result['status'] == 'success' else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        logger.error("Error requesting password OTP: %s", str(e))
+        return jsonify({"status": "error", "message": f"Error: {str(e)}"}), 500
+
+
+@app.route('/api/user/change-password', methods=['POST'])
+def change_password():
+    """Verify OTP and change password"""
+    try:
+        data = request.json
+        email = data.get('email')
+        otp = data.get('otp')
+        new_password = data.get('new_password')
+
+        if not email or not otp or not new_password:
+            return jsonify({"status": "error", "message": "Email, OTP, and new password are required"}), 400
+
+        # Verify OTP
+        otp_result = verify_otp(email, otp)
+        if otp_result['status'] != 'success':
+            return jsonify({"status": "error", "message": "Invalid or expired OTP"}), 400
+
+        # Validate password strength
+        password_policy = r"^(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=[\]{};':\\\"\\|,.<>\/?]).{8,}$"
+        if not re.match(password_policy, new_password):
+            return jsonify({"status": "error", "message": "Password must be at least 8 characters long, include an uppercase letter and a special character."}), 400
+
+        # Update password
+        hashed_password = bcrypt.generate_password_hash(new_password).decode('utf-8')
+        result = users_collection.update_one(
+            {"email": email},
+            {"$set": {"password": hashed_password}}
+        )
+
+        if result.modified_count > 0:
+            clear_otp(email)
+            return jsonify({"status": "success", "message": "Password changed successfully"})
+        else:
+            return jsonify({"status": "error", "message": "Failed to update password"}), 500
+    except Exception as e:
+        logger.error("Error changing password: %s", str(e))
+        return jsonify({"status": "error", "message": f"Error: {str(e)}"}), 500
 
 
 @app.route('/api/register/request-otp', methods=['POST'])
@@ -178,6 +328,7 @@ def login():
             "token": token,
             "user_id": str(user["_id"]),
             "email": user["email"],
+            "parentName": user.get("parentName", ""),
             "role": user.get("role", "user"),
             "is_admin": user.get("role", "user") == "admin"
         })
@@ -241,6 +392,7 @@ def get_user_agents(user_id):
         agents = list(agents_collection.find({"linked_user_id": user_id}, {
             '_id': 0,
             'agent_id': 1,
+            'name': 1,
             'linked_user_id': 1,
             'last_heartbeat': 1,
             'system_info': 1
@@ -303,6 +455,7 @@ def check_email_credentials():
     """
     Check if email credentials are configured (without revealing password)
     Only accessible to admin role users
+    Checks both database and environment variables
     """
     try:
         email, password = get_email_credentials()
@@ -311,16 +464,21 @@ def check_email_credentials():
                 "status": "success",
                 "configured": True,
                 "email": email,
-                "message": "Email credentials are configured"
+                "message": "Email credentials are configured (can be updated from Admin Panel)"
             }), 200
         else:
             return jsonify({
                 "status": "success",
                 "configured": False,
-                "message": "Email credentials are not configured"
+                "message": "Email credentials are not configured. Please set them up in the Admin Panel to send OTPs."
             }), 200
     
     except Exception as e:
+        return jsonify({
+            "status": "error",
+            "configured": False,
+            "message": f"Error checking credentials: {str(e)}"
+        }), 500
         return jsonify({"status": "error", "message": f"Error checking credentials: {str(e)}"}), 500
 
 
@@ -332,11 +490,12 @@ def generate_agent_token():
 @app.route('/api/agent/register', methods=['POST'])
 def register_agent():
     """Register a new agent (pre-link)
-    Agent calls this first with just agent_id to initialize itself in the database
+    Agent calls this first with agent_id and name to initialize itself in the database
     """
     try:
         data = request.json
         agent_id = data.get('agent_id')
+        name = data.get('name', f'PC-{agent_id}')  # Default name if not provided
         
         if not agent_id:
             return jsonify({"status": "error", "message": "Agent ID is required"}), 400
@@ -344,6 +503,12 @@ def register_agent():
         # Check if agent already exists
         existing = agents_collection.find_one({"agent_id": agent_id})
         if existing:
+            # Update name if different
+            if existing.get('name') != name:
+                agents_collection.update_one(
+                    {"agent_id": agent_id},
+                    {"$set": {"name": name}}
+                )
             # Return existing token if already linked, or wait status if not
             if existing.get('agent_token'):
                 return jsonify({
@@ -362,6 +527,7 @@ def register_agent():
         # Create new agent record (not yet linked)
         agents_collection.insert_one({
             "agent_id": agent_id,
+            "name": name,
             "agent_token": None,  # Will be set when user links it
             "linked_user_id": None,
             "linked_at": None,
@@ -370,7 +536,7 @@ def register_agent():
             "pending_commands": []
         })
         
-        logger.info("Agent registered: agent_id=%s", agent_id)
+        logger.info("Agent registered: agent_id=%s name=%s", agent_id, name)
         return jsonify({
             "status": "success",
             "registered": True,
@@ -559,6 +725,7 @@ def get_agents():
         agents = list(agents_collection.find(filter_query, {
             '_id': 0,
             'agent_id': 1,
+            'name': 1,
             'linked_user_id': 1,
             'last_heartbeat': 1,
             'system_info': 1

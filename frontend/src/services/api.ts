@@ -25,6 +25,7 @@ axios.interceptors.response.use(
       localStorage.removeItem('token');
       localStorage.removeItem('user_id');
       localStorage.removeItem('email');
+      localStorage.removeItem('parentName');
       localStorage.removeItem('role');
       localStorage.removeItem('is_admin');
       
