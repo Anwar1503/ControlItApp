@@ -143,6 +143,7 @@ class EmailCredentialService:
     def get_email_credentials(self) -> Tuple[Optional[str], Optional[str]]:
         """
         Retrieve email credentials from MongoDB (decrypted)
+        Falls back to environment variables if not found in database
         
         Returns:
             tuple: (email, decrypted_password) or (None, None) if not found
@@ -152,10 +153,18 @@ class EmailCredentialService:
             if creds:
                 email = creds['email']
                 password = self._decrypt_password(creds['password'])
-                self.logger.debug(f"Credentials retrieved for: {email}")
+                self.logger.debug(f"Credentials retrieved from database for: {email}")
                 return email, password
             
-            self.logger.debug("No email credentials found in database")
+            # Fallback to environment variables
+            env_email = os.getenv('EMAIL_ADDRESS')
+            env_password = os.getenv('EMAIL_PASSWORD')
+            
+            if env_email and env_password:
+                self.logger.debug(f"Credentials retrieved from environment for: {env_email}")
+                return env_email, env_password
+            
+            self.logger.debug("No email credentials found in database or environment")
             return None, None
         
         except Exception as e:

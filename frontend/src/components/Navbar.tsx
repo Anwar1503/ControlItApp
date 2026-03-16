@@ -20,18 +20,6 @@ const Navbar: React.FC = () => {
     navigate('/admin');
   };
 
-  const handleLogout = () => {
-    // Clear all authentication data
-    localStorage.removeItem('token');
-    localStorage.removeItem('user_id');
-    localStorage.removeItem('email');
-    localStorage.removeItem('role');
-    localStorage.removeItem('is_admin');
-    
-    // Navigate to login
-    navigate('/login');
-  };
-
   return (
     <AppBar position="static">
       <Toolbar>
@@ -61,22 +49,6 @@ const Navbar: React.FC = () => {
             🔧 Admin
           </Button>
         )}
-
-        <Button
-          color="inherit"
-          onClick={handleLogout}
-          sx={{
-            fontWeight: 600,
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-            padding: '5px 15px',
-            borderRadius: '4px',
-            '&:hover': {
-              backgroundColor: 'rgba(255, 255, 255, 0.2)',
-            }
-          }}
-        >
-          🚪 Logout
-        </Button>
 
         <Typography sx={{ fontWeight: 500 }}>Hi, {userEmail}</Typography>
       </Toolbar>

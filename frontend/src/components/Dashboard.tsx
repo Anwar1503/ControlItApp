@@ -216,7 +216,7 @@ const Dashboard: React.FC = () => {
       if (response.data.agents) {
         const formatteAgents = response.data.agents.map((agent: any) => ({
           ...agent,
-          name: agent.user_email || agent.agent_id,
+          name: agent.name || agent.user_email || agent.agent_id,
           type: agent.system_info?.type || 'Unknown',
           status: agent.system_info?.status || 'offline',
           ipAddress: agent.system_info?.ipAddress || 'N/A',
@@ -237,7 +237,7 @@ const Dashboard: React.FC = () => {
       // Fall back to mock data
       setAgents(mockAgents.map((agent: any) => ({
         ...agent,
-        name: agent.user_email || agent.agent_id,
+        name: agent.name || agent.user_email || agent.agent_id,
         type: agent.system_info?.type || 'Unknown',
         status: agent.system_info?.status || 'offline',
         ipAddress: agent.system_info?.ipAddress || 'N/A',
@@ -870,7 +870,7 @@ const Dashboard: React.FC = () => {
         </DialogTitle>
         <DialogContent sx={{ color: "rgba(255,255,255,0.8)" }}>
           <Typography sx={{ mb: 1 }}>
-            {`Agent ID: ${infoAgent?.agent_id}`}
+            {`PC Name: ${infoAgent?.name || infoAgent?.agent_id}`}
           </Typography>
           <Typography sx={{ mb: 1 }}>
             {`Status: ${infoAgent?.status || "Unknown"}`}

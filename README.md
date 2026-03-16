@@ -56,9 +56,11 @@ The ControlIt agent system provides server-side APIs for remote management of cl
 
 ### Server Features
 - **Secure Linking**: Browser-based authentication to link agents to user accounts
+- **PC Naming**: Agents automatically register with PC hostname for easy identification
 - **Real-time Monitoring**: Receives system information from connected agents
 - **Remote Commands**: Send commands (lock, shutdown, get info) to connected agents
 - **Admin Management**: Web interface for viewing and controlling linked agents
+- **User Profile Management**: Complete profile viewing and settings management with secure password updates
 
 ### API Endpoints
 - `POST /api/agent/link` - Links agent to user account
@@ -68,15 +70,16 @@ The ControlIt agent system provides server-side APIs for remote management of cl
 - `POST /api/admin/agent/command` - Send commands to agents
 
 ### Agent Linking Process
-1. Agent opens browser to `/login/agent/link?agent_id={agent_id}`
-2. User logs in through the web interface
-3. Agent polls `/api/agent/status/{agent_id}` for linking completion
-4. Once linked, agent receives authentication token
-5. Agent begins sending heartbeats every 10 seconds with system information
+1. Agent registers with server using PC hostname for identification
+2. Agent opens browser to `/login/agent/link?agent_id={agent_id}`
+3. User logs in through the web interface
+4. Agent polls `/api/agent/status/{agent_id}` for linking completion
+5. Once linked, agent receives authentication token
+6. Agent begins sending heartbeats every 10 seconds with system information
 
 ### Admin Panel
 Administrators can view linked agents and send commands through the admin panel at `/admin`.
 
-## �👤 Author
+## 👤 Author
 **Anwar Basha**  
 Software Engineer | Bengaluru 🇮🇳
