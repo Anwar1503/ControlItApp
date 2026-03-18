@@ -5,14 +5,14 @@ import SideNav from "./SideNav";
 
 const Navbar: React.FC = () => {
   const navigate = useNavigate();
-  const [userEmail, setUserEmail] = useState('User');
+  const [userName, setUserName] = useState('User');
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    const email = localStorage.getItem('email');
+    const name = localStorage.getItem('parentName') || localStorage.getItem('email')?.split('@')[0] || 'User';
     const adminStatus = localStorage.getItem('is_admin') === 'true';
     
-    if (email) setUserEmail(email);
+    setUserName(name);
     setIsAdmin(adminStatus);
   }, []);
 
@@ -50,7 +50,7 @@ const Navbar: React.FC = () => {
           </Button>
         )}
 
-        <Typography sx={{ fontWeight: 500 }}>Hi, {userEmail}</Typography>
+        <Typography sx={{ fontWeight: 500 }}>Hi, {userName}</Typography>
       </Toolbar>
     </AppBar>
   );

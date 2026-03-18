@@ -14,6 +14,10 @@ COPY frontend/public ./public
 COPY frontend/src ./src
 COPY frontend/tsconfig.json ./
 
+# Set environment variables for build
+# Use empty string for API_BASE so calls to ${API_BASE}/api/... become /api/...
+ENV REACT_APP_API_URL=""
+
 # Build the app
 RUN npm run build
 

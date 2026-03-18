@@ -182,6 +182,7 @@ const Dashboard: React.FC = () => {
   const [selectedCommand, setSelectedCommand] = useState<string | null>(null);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [userName, setUserName] = useState<string>("");
 
   // Check if user is admin and redirect to admin panel
   useEffect(() => {
@@ -191,6 +192,11 @@ const Dashboard: React.FC = () => {
       window.location.href = '/admin';
       return;
     }
+    
+    // Get user name for greeting
+    const name = localStorage.getItem('parentName') || localStorage.getItem('email')?.split('@')[0] || 'User';
+    setUserName(name);
+    
     fetchAgents();
   }, []);
 
@@ -362,6 +368,16 @@ const Dashboard: React.FC = () => {
           }}
         >
           <Box>
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: "600",
+                color: "#f1f5f9",
+                mb: 1,
+              }}
+            >
+              Hi {userName}! 👋
+            </Typography>
             <Typography
               variant="h3"
               sx={{

@@ -40,12 +40,15 @@ services:
       ADMIN_EMAIL: admin@controlit.local
       ADMIN_PASSWORD: Admin@123
       REACT_APP_API_URL: http://backend:5000
+      UPLOAD_FOLDER: /app/uploads
+      ENCRYPTION_KEY: WQlOqpwMzn875bMvE0qyGhKxziCvkhaUn8aNcNapGXI=
     depends_on:
       mongodb:
         condition: service_healthy
     volumes:
       - ./backend:/app/backend
       - ./logs:/app/logs
+      - ./backend/uploads:/app/uploads
     networks:
       - controlapp_network
     healthcheck:
@@ -65,7 +68,7 @@ services:
     ports:
       - "80:80"
     environment:
-      REACT_APP_API_URL: http://backend:5000
+      REACT_APP_API_URL: /
     depends_on:
       - backend
     volumes:

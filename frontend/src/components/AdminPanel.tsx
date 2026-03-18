@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import '../styles/AdminPanel.css';
 import { API_BASE } from "../config/api";
+import DownloadsManagement from './DownloadsManagement';
 
 interface AdminPanelProps {
   isAdmin: boolean;
@@ -15,6 +16,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isAdmin, userId }) => {
   const [credentialsStatus, setCredentialsStatus] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [activeSection, setActiveSection] = useState<'users' | 'downloads'>('users');
+  
+  // Get user name for greeting
+  const userName = localStorage.getItem('parentName') || localStorage.getItem('email')?.split('@')[0] || 'Admin';
 
   console.log("API BASE =", process.env.REACT_APP_API_URL);
 
@@ -103,13 +108,54 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isAdmin, userId }) => {
     <div className="admin-panel">
       <div className="admin-container">
         <div className="admin-header">
-          <h1>Admin Panel</h1>
+          <div>
+            <h2 style={{ margin: '0 0 4px 0', fontSize: '1.1rem', fontWeight: '600', color: '#f1f5f9' }}>
+              Hi {userName}! 👋
+            </h2>
+            <h1>Admin Panel</h1>
+          </div>
           <button className="back-btn" onClick={() => navigate('/logout')}>
             🚪 Logout
           </button>
         </div>
 
+        {/* Admin Navigation */}
+        <div style={{display: 'flex', gap: '12px', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '16px'}}>
+          <button
+            onClick={() => setActiveSection('users')}
+            style={{
+              background: activeSection === 'users' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'rgba(255,255,255,0.05)',
+              border: activeSection === 'users' ? 'none' : '1px solid rgba(255,255,255,0.1)',
+              color: 'white',
+              padding: '10px 20px',
+              borderRadius: '8px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.3s',
+            }}
+          >
+            👥 Users Management
+          </button>
+          <button
+            onClick={() => setActiveSection('downloads')}
+            style={{
+              background: activeSection === 'downloads' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'rgba(255,255,255,0.05)',
+              border: activeSection === 'downloads' ? 'none' : '1px solid rgba(255,255,255,0.1)',
+              color: 'white',
+              padding: '10px 20px',
+              borderRadius: '8px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.3s',
+            }}
+          >
+            📥 Downloads Management
+          </button>
+        </div>
+
         <div className="admin-content">
+          {activeSection === 'users' ? (
+            <>
           {/* Email Credentials Setup Card */}
           <div className="admin-card">
             <div className="card-header">
@@ -251,6 +297,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isAdmin, userId }) => {
               )}
             </div>
           </div>
+            </>
+          ) : (
+            <DownloadsManagement />
+          )}
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
 from pymongo import MongoClient
@@ -11,6 +11,7 @@ import uuid
 import secrets
 import jwt
 import datetime
+from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from services.otp_service import request_otp, verify_otp, is_otp_verified, clear_otp
@@ -30,6 +31,18 @@ bcrypt = Bcrypt(app)
 JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your-secret-key-change-in-production')
 app.config['JWT_SECRET_KEY'] = JWT_SECRET_KEY
 
+# File upload configuration
+UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', '/app/uploads')
+ALLOWED_EXTENSIONS = {'exe', 'zip'}
+MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
+
+# Create upload folder if it doesn't exist
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
+
 logger = setup_logger("controlit-backend")
 
 # MongoDB setup - Use environment variable or default to localhost
@@ -38,6 +51,7 @@ client = MongoClient(MONGODB_URI)
 db = client["user_database"]
 users_collection = db["users"]
 agents_collection = db["agents"]
+downloads_collection = db["downloads"]
 
 logger.debug(
     "Mongo context DB=%s Collection=%s",
@@ -112,19 +126,14 @@ def update_user_profile():
     try:
         user_id = request.user_id
         data = request.json
-        email = data.get('email')
+        parent_name = data.get('parentName')
         phone = data.get('phone')
 
-        if not email:
-            return jsonify({"status": "error", "message": "Email is required"}), 400
-
-        # Check if email is already taken by another user
-        existing_user = users_collection.find_one({"email": email, "_id": {"$ne": ObjectId(user_id)}})
-        if existing_user:
-            return jsonify({"status": "error", "message": "Email already in use"}), 409
+        if not parent_name:
+            return jsonify({"status": "error", "message": "Name is required"}), 400
 
         # Update user
-        update_data = {"email": email}
+        update_data = {"parentName": parent_name}
         if phone is not None:
             update_data["phone"] = phone
 
@@ -248,6 +257,7 @@ def register():
     email = data.get('email')
     password = data.get('password')
     phone = data.get('phone')
+    parent_name = data.get('name')  # Extract name field
 
     # Check if OTP is verified
     if not is_otp_verified(email):
@@ -272,9 +282,10 @@ def register():
     new_user = {
         "email": email,
         "phone": phone,
+        "parentName": parent_name,
         "password": hashed_password,
         "role": user_role,
-        "created_at": None
+        "created_at": datetime.datetime.utcnow()
     }
 
     result = users_collection.insert_one(new_user)
@@ -835,6 +846,156 @@ def change_user_role():
             
     except Exception as e:
         logger.error("Error changing user role: %s", str(e))
+        return jsonify({"status": "error", "message": f"Error: {str(e)}"}), 500
+
+
+# Downloads Management
+@app.route('/api/downloads', methods=['GET'])
+@require_jwt
+def get_downloads():
+    """Get list of available downloads"""
+    try:
+        # Fetch all downloads from the database
+        downloads = list(downloads_collection.find(
+            {"active": True},
+            {
+                "_id": 1,
+                "name": 1,
+                "version": 1,
+                "size": 1,
+                "uploadedDate": 1,
+                "downloadUrl": 1,
+                "description": 1
+            }
+        ).sort("uploadedDate", -1))
+        
+        # Convert ObjectId to string for JSON serialization
+        for download in downloads:
+            download['id'] = str(download.pop('_id'))
+        
+        return jsonify({
+            "status": "success",
+            "downloads": downloads
+        })
+    except Exception as e:
+        logger.error("Error fetching downloads: %s", str(e))
+        return jsonify({"status": "error", "message": f"Error: {str(e)}"}), 500
+
+
+@app.route('/api/admin/uploads/add', methods=['POST'])
+@require_admin_jwt
+def add_download():
+    """Upload and add a new download (Admin only)"""
+    try:
+        # Check if file is present
+        if 'file' not in request.files:
+            return jsonify({"status": "error", "message": "No file part"}), 400
+        
+        file = request.files['file']
+        name = request.form.get('name')
+        version = request.form.get('version')
+        description = request.form.get('description', '')
+        
+        if not name or not version:
+            return jsonify({"status": "error", "message": "Name and version are required"}), 400
+        
+        if file.filename == '':
+            return jsonify({"status": "error", "message": "No file selected"}), 400
+        
+        # Validate file extension
+        filename = secure_filename(file.filename)
+        if not any(filename.lower().endswith(f".{ext}") for ext in ALLOWED_EXTENSIONS):
+            return jsonify({"status": "error", "message": "Only .exe and .zip files are allowed"}), 400
+        
+        # Generate unique filename
+        unique_filename = f"{uuid.uuid4()}_{filename}"
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        
+        # Save file
+        file.save(filepath)
+        
+        # Get file size
+        file_size = os.path.getsize(filepath)
+        size_mb = round(file_size / (1024 * 1024), 2)
+        
+        download_doc = {
+            "name": name,
+            "version": version,
+            "size": f"{size_mb} MB",
+            "description": description,
+            "filename": unique_filename,
+            "originalFilename": filename,
+            "uploadedDate": datetime.datetime.utcnow(),
+            "uploadedBy": request.user_id,
+            "active": True
+        }
+        
+        result = downloads_collection.insert_one(download_doc)
+        
+        logger.info("New download uploaded: %s by admin: %s", result.inserted_id, request.user_id)
+        return jsonify({
+            "status": "success",
+            "message": "Download uploaded successfully",
+            "id": str(result.inserted_id)
+        })
+    except Exception as e:
+        logger.error("Error uploading download: %s", str(e))
+        return jsonify({"status": "error", "message": f"Error: {str(e)}"}), 500
+
+
+@app.route('/api/downloads/<download_id>/file', methods=['GET'])
+@require_jwt
+def download_file(download_id):
+    """Download a file (Users can download)"""
+    try:
+        download = downloads_collection.find_one({"_id": ObjectId(download_id), "active": True})
+        
+        if not download:
+            return jsonify({"status": "error", "message": "Download not found"}), 404
+        
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], download['filename'])
+        
+        if not os.path.exists(filepath):
+            return jsonify({"status": "error", "message": "File not found on server"}), 404
+        
+        logger.info("File downloaded: %s by user: %s", download_id, request.user_id)
+        return send_file(
+            filepath,
+            as_attachment=True,
+            download_name=download['originalFilename']
+        )
+    except Exception as e:
+        logger.error("Error downloading file: %s", str(e))
+        return jsonify({"status": "error", "message": f"Error: {str(e)}"}), 500
+
+
+@app.route('/api/admin/uploads/<download_id>', methods=['DELETE'])
+@require_admin_jwt
+def delete_download(download_id):
+    """Delete a download (Admin only)"""
+    try:
+        download = downloads_collection.find_one({"_id": ObjectId(download_id)})
+        
+        if not download:
+            return jsonify({"status": "error", "message": "Download not found"}), 404
+        
+        # Delete file from server
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], download['filename'])
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        
+        result = downloads_collection.update_one(
+            {"_id": ObjectId(download_id)},
+            {"$set": {"active": False}}
+        )
+        
+        logger.info("Download deleted: %s", download_id)
+        return jsonify({
+            "status": "success",
+            "message": "Download deleted successfully"
+        })
+    except Exception as e:
+        logger.error("Error deleting download: %s", str(e))
         return jsonify({"status": "error", "message": f"Error: {str(e)}"}), 500
 
 
