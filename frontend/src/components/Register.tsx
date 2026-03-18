@@ -1,4 +1,5 @@
 import React, { useState, ChangeEvent, FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Button,
@@ -25,6 +26,7 @@ interface RegisterFormData {
 }
 
 const Register: React.FC = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<RegisterFormData>({
     name: "",
     email: "",
@@ -125,15 +127,10 @@ const Register: React.FC = () => {
     try {
       const response = await axios.post(`${API_BASE}/api/register`, formData);
       setMessage(response.data.message);
-      // Reset form
-      setFormData({
-        name: "",
-        email: "",
-        password: "",
-        confirmPassword:"",
-        phone: "",
-      });
-      setActiveStep(0);
+      // Navigate to login page after successful registration
+      setTimeout(() => {
+        navigate('/login');
+      }, 2000); // Small delay to show success message
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed!');
     } finally {

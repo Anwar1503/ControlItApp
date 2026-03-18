@@ -9,7 +9,7 @@ import AdminPanel from "./AdminPanel";
 import AgentLink from "./AgentLink";
 import UserDetails from "./UserDetails";
 import Profile from "./Profile";
-import Settings from "./Settings";
+import Downloads from "./Downloads";
 import SessionTimeoutDialog from "./SessionTimeoutDialog";
 // Import API service to initialize axios interceptor
 import "../services/api";
@@ -105,13 +105,14 @@ const AppContent: React.FC = () => {
           <Route path="/login" element={<PublicOnlyRoute element={<Login />} />} />
           <Route path="/register" element={<PublicOnlyRoute element={<Register />} />} />
           <Route path="/forgotpassword" element={<PublicOnlyRoute element={<ForgotPassword />} />} />
+          <Route path="/agentLink" element={<PublicOnlyRoute element={<AgentLink />} />} />
+          <Route path="/login/agent/link" element={<PublicOnlyRoute element={<AgentLink />} />} />
           <Route path="/dashboard" element={<ProtectedRoute element={<Dashboard />} />} />
           <Route path="/profile" element={<ProtectedRoute element={<Profile />} />} />
-          <Route path="/settings" element={<ProtectedRoute element={<Settings />} />} />
+          <Route path="/downloads" element={<ProtectedRoute element={<Downloads />} />} />
           <Route path="/about" element={<ProtectedRoute element={<About />} />} />
           <Route path="/admin" element={<AdminRoute element={<AdminPanelWrapper />} />} />
           <Route path="/user/:userId" element={<AdminRoute element={<UserDetails />} />} />
-          <Route path="/login/agent/link" element={<PublicOnlyRoute element={<AgentLink />} />} />
           <Route path="/" element={<Navigate to="/login" replace />} />
         </Routes>
       </div>

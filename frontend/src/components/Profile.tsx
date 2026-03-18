@@ -11,6 +11,15 @@ import {
   Paper,
   CircularProgress,
   Alert,
+  Button,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Stepper,
+  Step,
+  StepLabel,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import Navbar from "./Navbar";
@@ -301,6 +310,17 @@ const Profile: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [editData, setEditData] = useState({ parentName: '', phone: '' });
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [passwordStep, setPasswordStep] = useState(0);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [otpDialog, setOtpDialog] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUserProfile();
@@ -321,6 +341,10 @@ const Profile: React.FC = () => {
 
       if (response.data.status === "success") {
         setUserData(response.data.user);
+        setEditData({
+          parentName: response.data.user.parentName || '',
+          phone: response.data.user.phone || ''
+        });
       } else {
         setError("Failed to load profile");
       }
@@ -329,6 +353,116 @@ const Profile: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSave = async () => {
+    // Validate required fields
+    if (!editData.parentName.trim()) {
+      setError("Name is required");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError(""); // Clear any previous errors
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Not authenticated");
+        return;
+      }
+
+      const response = await axios.put(`${API_BASE}/api/user/profile`, editData, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.data.status === "success") {
+        setUserData(prev => prev ? { ...prev, ...editData } : null);
+        // Update localStorage for navbar greeting
+        localStorage.setItem('parentName', editData.parentName);
+        setError(""); // Clear any errors on success
+      } else {
+        setError("Failed to update profile");
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to update profile");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRequestPasswordOTP = async () => {
+    try {
+      setPasswordLoading(true);
+      setError(null);
+
+      const response = await axios.post(`${API_BASE}/api/user/request-password-otp`, {
+        email: userData?.email
+      });
+
+      if (response.data.status === 'success') {
+        setOtpSent(true);
+        setPasswordStep(1);
+      } else {
+        setError(response.data.message || 'Failed to send OTP');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to send OTP');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  const handleVerifyOTPAndChangePassword = async () => {
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    const passwordPolicy = /^(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>\/?]).{8,}$/;
+    if (!passwordPolicy.test(newPassword)) {
+      setError('Password must be at least 8 characters long and include an uppercase letter and a special character.');
+      return;
+    }
+
+    try {
+      setPasswordLoading(true);
+      setError(null);
+
+      const response = await axios.post(`${API_BASE}/api/user/change-password`, {
+        email: userData?.email,
+        otp,
+        new_password: newPassword
+      });
+
+      if (response.data.status === 'success') {
+        setSuccessMessage('Password changed successfully!');
+        setTimeout(() => {
+          setPasswordDialogOpen(false);
+          setPasswordStep(0);
+          setOtp('');
+          setNewPassword('');
+          setConfirmPassword('');
+          setOtpSent(false);
+          setSuccessMessage(null);
+        }, 2000);
+      } else {
+        setError(response.data.message || 'Failed to change password');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to change password');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  const handleClosePasswordDialog = () => {
+    setPasswordDialogOpen(false);
+    setPasswordStep(0);
+    setOtp('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setOtpSent(false);
+    setError(null);
   };
 
   const formatDate = (d?: string) =>
@@ -419,20 +553,83 @@ const Profile: React.FC = () => {
         {/* Contact */}
         <Grid item xs={12} md={6}>
           <InfoCard>
-            <CardTitle>
-              <span>✉</span> Contact
-            </CardTitle>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <CardTitle>
+                <span>✉</span> Contact
+              </CardTitle>
+              <Button
+                onClick={handleSave}
+                disabled={saving}
+                variant="contained"
+                size="small"
+                sx={{
+                  backgroundColor: '#6366f1',
+                  '&:hover': { backgroundColor: '#4f46e5' },
+                  textTransform: 'none',
+                  fontSize: '12px',
+                  padding: '4px 12px',
+                }}
+              >
+                {saving ? <CircularProgress size={14} /> : 'Save Changes'}
+              </Button>
+            </Box>
 
             <FieldRow>
               <FieldLabel>Email address</FieldLabel>
-              <FieldValue>{userData?.email}</FieldValue>
+              <FieldValue sx={{ color: 'rgba(255,255,255,0.5)' }}>{userData?.email} (Cannot be changed)</FieldValue>
+            </FieldRow>
+
+            <Divider />
+
+            <FieldRow>
+              <FieldLabel>Name</FieldLabel>
+              <TextField
+                fullWidth
+                required
+                value={editData.parentName}
+                onChange={(e) => setEditData(prev => ({ ...prev, parentName: e.target.value }))}
+                placeholder="Enter your name"
+                sx={{
+                  '& .MuiInputBase-root': {
+                    backgroundColor: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    color: 'white',
+                  },
+                  '& .MuiInputBase-input': {
+                    padding: '8px 12px',
+                  },
+                  '& .MuiInputBase-input::placeholder': {
+                    color: 'rgba(255,255,255,0.4)',
+                  },
+                }}
+              />
             </FieldRow>
 
             <Divider />
 
             <FieldRow>
               <FieldLabel>Phone number</FieldLabel>
-              <FieldValue>{userData?.phone || "Not provided"}</FieldValue>
+              <TextField
+                fullWidth
+                value={editData.phone}
+                onChange={(e) => setEditData(prev => ({ ...prev, phone: e.target.value }))}
+                placeholder="Enter your phone number"
+                sx={{
+                  '& .MuiInputBase-root': {
+                    backgroundColor: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    color: 'white',
+                  },
+                  '& .MuiInputBase-input': {
+                    padding: '8px 12px',
+                  },
+                  '& .MuiInputBase-input::placeholder': {
+                    color: 'rgba(255,255,255,0.4)',
+                  },
+                }}
+              />
             </FieldRow>
           </InfoCard>
         </Grid>
@@ -478,6 +675,28 @@ const Profile: React.FC = () => {
                 }
               />
             </FieldRow>
+
+            <Divider />
+
+            <FieldRow>
+              <Button
+                variant="contained"
+                fullWidth
+                onClick={() => setPasswordDialogOpen(true)}
+                sx={{
+                  background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                  color: "white",
+                  textTransform: "none",
+                  fontWeight: 600,
+                  padding: "10px 16px",
+                  "&:hover": {
+                    background: "linear-gradient(135deg, #5568d3 0%, #65398a 100%)",
+                  },
+                }}
+              >
+                🔑 Change Password
+              </Button>
+            </FieldRow>
           </InfoCard>
         </Grid>
       </InfoGrid>
@@ -508,6 +727,157 @@ const Profile: React.FC = () => {
           </Grid>
         </StatsGrid>
       </StatsCard>
+
+      {/* Password Change Dialog */}
+      <Dialog
+        open={passwordDialogOpen}
+        onClose={handleClosePasswordDialog}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            background: "rgba(20, 20, 35, 0.95)",
+            backdropFilter: "blur(10px)",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            borderRadius: "12px",
+          },
+        }}
+      >
+        <DialogTitle sx={{ color: "white", fontWeight: "700", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+          Change Password
+        </DialogTitle>
+        <DialogContent sx={{ color: "rgba(255,255,255,0.8)", pt: 3 }}>
+          {successMessage && (
+            <Alert severity="success" sx={{ mb: 2, backgroundColor: "rgba(76, 175, 80, 0.1)", border: "1px solid rgba(76, 175, 80, 0.3)", color: "rgba(76, 175, 80, 0.9)" }}>
+              {successMessage}
+            </Alert>
+          )}
+          {error && (
+            <Alert severity="error" sx={{ mb: 2, backgroundColor: "rgba(244, 67, 54, 0.1)", border: "1px solid rgba(244, 67, 54, 0.3)", color: "rgba(244, 67, 54, 0.9)" }}>
+              {error}
+            </Alert>
+          )}
+
+          <Stepper activeStep={passwordStep} sx={{ mb: 3 }}>
+            <Step>
+              <StepLabel sx={{ color: "white" }}>New Password</StepLabel>
+            </Step>
+            <Step>
+              <StepLabel sx={{ color: "white" }}>Verify OTP</StepLabel>
+            </Step>
+          </Stepper>
+
+          {passwordStep === 0 ? (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <TextField
+                fullWidth
+                label="New Password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                disabled={passwordLoading}
+                sx={{
+                  "& .MuiInputBase-root": {
+                    backgroundColor: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "8px",
+                    color: "white",
+                  },
+                  "& .MuiInputLabel-root": {
+                    color: "rgba(255,255,255,0.6)",
+                  },
+                }}
+              />
+              <TextField
+                fullWidth
+                label="Confirm Password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                disabled={passwordLoading}
+                error={Boolean(confirmPassword && newPassword !== confirmPassword)}
+                helperText={confirmPassword && newPassword !== confirmPassword ? "Passwords do not match" : ""}
+                sx={{
+                  "& .MuiInputBase-root": {
+                    backgroundColor: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "8px",
+                    color: "white",
+                  },
+                  "& .MuiInputLabel-root": {
+                    color: "rgba(255,255,255,0.6)",
+                  },
+                }}
+              />
+              <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.5)", fontSize: "12px" }}>
+                Password must be at least 8 characters long and include at least one uppercase letter and one special character (e.g., !@#$%^&*()).
+              </Typography>
+            </Box>
+          ) : (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)" }}>
+                We've sent an OTP to your email. Please enter it below to confirm the password change.
+              </Typography>
+              <TextField
+                fullWidth
+                label="Enter OTP"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                disabled={passwordLoading}
+                placeholder="123456"
+                inputProps={{ maxLength: 6 }}
+                sx={{
+                  "& .MuiInputBase-root": {
+                    backgroundColor: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "8px",
+                    color: "white",
+                  },
+                  "& .MuiInputLabel-root": {
+                    color: "rgba(255,255,255,0.6)",
+                  },
+                }}
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2, borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+          <Button
+            onClick={handleClosePasswordDialog}
+            disabled={passwordLoading}
+            sx={{ color: "rgba(255,255,255,0.6)" }}
+          >
+            Cancel
+          </Button>
+          {passwordStep === 0 ? (
+            <Button
+              onClick={handleRequestPasswordOTP}
+              disabled={passwordLoading || !newPassword || !confirmPassword || newPassword !== confirmPassword}
+              variant="contained"
+              sx={{
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                color: "white",
+                fontWeight: 600,
+              }}
+            >
+              {passwordLoading ? <CircularProgress size={20} /> : "Continue"}
+            </Button>
+          ) : (
+            <Button
+              onClick={handleVerifyOTPAndChangePassword}
+              disabled={passwordLoading || !otp}
+              variant="contained"
+              sx={{
+                background: "linear-gradient(135deg, #4caf50 0%, #45a049 100%)",
+                color: "white",
+                fontWeight: 600,
+              }}
+            >
+              {passwordLoading ? <CircularProgress size={20} /> : "Verify & Change Password"}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
     </ProfileContainer>
   );
 };

@@ -240,12 +240,15 @@ const SubmitButton = styled(Button)(({ theme }) => ({
   },
 }));
 
-const ForgotLink = styled("a")({
+const ForgotLink = styled("button")({
   fontSize: "13px",
   color: "#818cf8",
   textDecoration: "none",
   fontWeight: 500,
   cursor: "pointer",
+  border: "none",
+  background: "none",
+  padding: "0",
   "&:hover": {
     textDecoration: "underline",
   },
@@ -444,7 +447,7 @@ const Login: React.FC = () => {
                   </Typography>
                 }
               />
-              <ForgotLink href="/forgotpassword">
+              <ForgotLink onClick={() => navigate("/forgotpassword")}>
                 Forgot password?
               </ForgotLink>
             </Box>

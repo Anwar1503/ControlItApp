@@ -17,7 +17,7 @@ import MenuIcon from "@mui/icons-material/Menu";
 import {
   LayoutDashboard as DashboardIcon,
   User as UserIcon,
-  Settings as SettingsIcon,
+  Download as DownloadIcon,
   LogOut as LogoutIcon,
 } from "lucide-react";
 
@@ -32,7 +32,7 @@ const SideNav: React.FC = () => {
   const menuItems = [
     { text: "Dashboard", path: "/dashboard", icon: DashboardIcon },
     { text: "Profile", path: "/profile", icon: UserIcon },
-    { text: "Settings", path: "/settings", icon: SettingsIcon },
+    { text: "Downloads", path: "/downloads", icon: DownloadIcon },
   ];
 
   const handleLogout = () => {
